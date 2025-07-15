@@ -37,11 +37,12 @@ template
 struct Face {
 
 	Face(Vertex<T>* v1, Vertex<T>* v2, Vertex<T>* v3)
-		: v1(v1), v2(v2), v3(v3) {}
-
+        : v1(v1), v2(v2), v3(v3) {}
+        
     Vertex<T>* v1;
     Vertex<T>* v2;
     Vertex<T>* v3;
+
 
 
 };

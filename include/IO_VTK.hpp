@@ -13,7 +13,8 @@ struct Face;
 
 template
 <typename T>
-void read_vtk(const std::string problem_name, Vertex<T>** vertices, Face<T>** faces);
+void read_vtk(const std::string problem_name, Vertex<T>** vertices, Face<T>** faces,
+					size_t *nvertices, size_t *nfaces);
 
 #endif
 
