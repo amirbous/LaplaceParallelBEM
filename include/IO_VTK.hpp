@@ -3,6 +3,7 @@
 
 
 #include <string>
+#include <vector>
 
 template <typename T>
 struct Vertex;
@@ -13,8 +14,14 @@ struct Face;
 
 template
 <typename T>
-void read_vtk(const std::string problem_name, Vertex<T>** vertices, Face<T>** faces,
-					size_t *nvertices, size_t *nfaces);
+void read_vtk(const std::string problem_name, std::vector<Vertex<T>>& vertices,
+				std::vector<Face<T>>& faces,
+				size_t& nvertices, size_t& nfaces);
+template
+<typename T>
+
+void write_vtu(const std::string problem_name, const std::vector<Vertex<T>>& vertices, const std::vector<Face<T>>& faces,
+							size_t &nvertices, size_t &nfaces);
 
 #endif
 

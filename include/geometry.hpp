@@ -21,14 +21,17 @@ struct Vertex {
 				id(id), x(x), y(y), z(z), 
 				potential(potential), density(density)  {
 			}
+
+	Vertex(const Vertex<T>& other) :
+	       		id(other.id), x(other.x), y(other.y), z(other.z),
+	       		potential(other.potential), density(other.density) {}
+
 	float x;
 	float y;
 	float z;
 
 	T potential;
 	T density;
-
-
 
 };
 
@@ -38,6 +41,9 @@ struct Face {
 
 	Face(Vertex<T>* v1, Vertex<T>* v2, Vertex<T>* v3)
         : v1(v1), v2(v2), v3(v3) {}
+    Face()
+        : v1(), v2(), v3() {}
+
         
     Vertex<T>* v1;
     Vertex<T>* v2;

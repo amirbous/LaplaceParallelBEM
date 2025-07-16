@@ -3,9 +3,13 @@
 #include "../include/geometry.hpp"
 #include "../include/IO_VTK.hpp"
 
+
 #include <string>
+#include <vector>
 
 int main() {
+
+	using ValueType = double;
 
 	std::string problem_name{"sphere"};	
 
@@ -14,11 +18,11 @@ int main() {
 
 	size_t nvertices{0};
 	size_t nfaces{0};
-	Vertex<double>* vertices = nullptr;
-	Face<double>* faces = nullptr;
+	std::vector<Vertex<double>> vertices;
+	std::vector<Face<double>> faces;
 
 	
-	read_vtk<double>(problem_name, &vertices, &faces, &nvertices, &nfaces);
+	read_vtk<ValueType>(problem_name, vertices, faces, nvertices, nfaces);
 
 
 	std::cout << "Example vertices" << std::endl;
@@ -26,10 +30,14 @@ int main() {
 		std::cout << "Vi_x: " << vertices[i].x << std::endl;
  	}
 
- 	std::cout << "Example faces" << std::endl;
-	for (int i = 0; i < 10; i++) {
-		std::cout << "Fi_v1: " << faces[i].v1->x << std::endl;
+ 	for (int i = 0; i < nvertices; i++) {
+ 		vertices[i].potential = vertices[i].x + vertices[i].y + vertices[i].z;
  	}
+
+ 	std::cout << "Number of faces: " << nfaces << std::endl;
+
+ 	write_vtu<ValueType>(problem_name, vertices, faces, nvertices, nfaces);
+
 
 	return 0;
 
