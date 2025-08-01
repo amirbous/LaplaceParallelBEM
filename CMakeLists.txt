@@ -6,6 +6,7 @@ project(Par3DLaplaceBEM)
 # c++ standard
 set(CMAKE_CXX_STANDARD 17)
 
+set(GINKGO_DIR "$ENV{HOME}/ginkgo/build/install")
 
 
 # sources to compile
@@ -22,8 +23,17 @@ add_executable(main ${SOURCES})
 find_package(OpenMP REQUIRED)
 find_package(Eigen3 REQUIRED)
 
+find_package(Ginkgo REQUIRED PATHS "${GINKGO_DIR}/lib/cmake/ginkgo")
+
+
 if(OpenMP_CXX_FOUND)
     target_link_libraries(main PUBLIC OpenMP::OpenMP_CXX)
+endif()
+
+if (Ginkgo_FOUND)
+    target_link_libraries(main PUBLIC Ginkgo::ginkgo)
+else()
+    message(WARNING "Ginkgo not found. Proceeding without it.")
 endif()
 
 target_link_libraries(main PUBLIC Eigen3::Eigen)
