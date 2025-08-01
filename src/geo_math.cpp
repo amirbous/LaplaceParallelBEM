@@ -14,7 +14,7 @@
 template
 <typename T>
 float face_area(const Vertex<T>* v1, const Vertex<T>* v2, 
-					const Vertex<T>* v3, float mesh_centroid[3]){
+					const Vertex<T>* v3){
 	
 	// vector to store the normal vectir (x, y, z)
 	float triangle_normal[3] = {0.0f};
@@ -59,7 +59,7 @@ template
 <typename T>
 double gauss_integral(const Vertex<T>* v1,
                     const Vertex<T>* v2, const Vertex<T>* v3,
-                    float cent[3], float mesh_centroid[3]) {
+                    float cent[3]) {
     
 
     double Gij = 0.0;
@@ -78,7 +78,7 @@ double gauss_integral(const Vertex<T>* v1,
 
 
     // variable to store the result
-    area = face_area(v1, v2, v3, mesh_centroid);
+    area = face_area(v1, v2, v3);
 
     for (int k = 0; k < nGauss; k++) {
 
@@ -112,13 +112,13 @@ double gauss_integral(const Vertex<T>* v1,
 template
 <typename T>
 double regularized_integral(const Vertex<T>* v1,
-                    const Vertex<T>* v2, const Vertex<T>* v3,
-                    float mesh_centroid[3]) {
+                    const Vertex<T>* v2, const Vertex<T>* v3
+                    ) {
 
     double Gii{0.0};
     float area{0.0f}, R{0.0f};
 
-    area = face_area(v1, v2, v3, mesh_centroid);
+    area = face_area(v1, v2, v3);
 
     R = std::sqrt(area / PI);
 
@@ -131,23 +131,21 @@ double regularized_integral(const Vertex<T>* v1,
 
 template double gauss_integral<float>(const Vertex<float>* v1,
                     const Vertex<float>* v2, const Vertex<float>* v3,
-                    float cent[3], float mesh_centroid[3]);
+                    float cent[3]);
 
 
 template double gauss_integral<double>(const Vertex<double>* v1,
                     const Vertex<double>* v2, const Vertex<double>* v3,
-                    float cent[3], float mesh_centroid[3]);
+                    float cent[3]);
 
 
 template float face_area<float>(const Vertex<float>* v1, const Vertex<float>* v2, 
-					const Vertex<float>* v3, float mesh_centroid[3]);
+					const Vertex<float>* v3);
 template float face_area<double>(const Vertex<double>* v1, const Vertex<double>* v2, 
-					const Vertex<double>* v3, float mesh_centroid[3]);
+					const Vertex<double>* v3);
 
 template double regularized_integral<float>(const Vertex<float>* v1,
-                    const Vertex<float>* v2, const Vertex<float>* v3,
-                    float mesh_centroid[3]);
+                    const Vertex<float>* v2, const Vertex<float>* v3);
 
 template double regularized_integral<double>(const Vertex<double>* v1,
-                    const Vertex<double>* v2, const Vertex<double>* v3,
-                    float mesh_centroid[3]);
+                    const Vertex<double>* v2, const Vertex<double>* v3);

@@ -1,9 +1,11 @@
 #include <iostream>
 #include <vector>
 #include <string>
-#include <Eigen/Dense>
 
 #include <chrono>
+#include <limits>
+
+
 #include <ginkgo/ginkgo.hpp>
 
 #include "../include/geometry.hpp"
@@ -15,7 +17,7 @@ int main(int argc, char* argv[]) {
     using ValueType = double;
     std::string mesh_file = (argc > 1 ? argv[1] : "sphere");
 
-    size_t n_vertices = 0, n_faces = 0;
+    size_t n_vertices{0}, n_faces{0};
     std::vector<Vertex<ValueType>> vertices;
     std::vector<Face<ValueType>> faces;
 
@@ -23,7 +25,7 @@ int main(int argc, char* argv[]) {
 
     float mesh_centroid[] = {0.0f, 0.0f, 0.0f};
     float cent[] = {0.0f, 0.0f, 0.0f};
-    float area_i{0.0f}, R{0.0f};
+
 
 
     read_vtk<ValueType>(mesh_file, vertices, faces, n_vertices, n_faces);
@@ -38,19 +40,9 @@ int main(int argc, char* argv[]) {
 
     // Boundary Conditions
     //for (auto& v : vertices) { v.potential = 10;} 
-    for (auto& v : vertices) { v.potential = v.x + v.y;} 
+    for (auto& v : vertices) { v.potential = 10;} 
     
     // compute the center of the object
-    for (auto& v : vertices) {
-
-        mesh_centroid[0] += v.x;
-        mesh_centroid[1] += v.y;
-        mesh_centroid[2] += v.z;
-    }
-
-    mesh_centroid[0] /= static_cast<float>(n_vertices);
-    mesh_centroid[1] /= static_cast<float>(n_vertices);
-    mesh_centroid[2] /= static_cast<float>(n_vertices);
 
 
     std::cout << "Started assembling the matrix" << std::endl;
@@ -62,6 +54,7 @@ int main(int argc, char* argv[]) {
 
     std::chrono::steady_clock::time_point begin_assembleMatrix = std::chrono::steady_clock::now(); // measure time for this section
 
+
     for (size_t i = 0; i < n_faces; ++i) {
         cent[0] = (faces[i].v1->x + faces[i].v2->x + faces[i].v3->x) / 3;
         cent[1] = (faces[i].v1->y + faces[i].v2->y + faces[i].v3->y) / 3;
@@ -70,11 +63,11 @@ int main(int argc, char* argv[]) {
         for (size_t j = 0; j < n_faces; ++j) {
             if (i == j) {
                 // compute area of face:
-                G_arr[n_faces * i + i] = regularized_integral(faces[j].v1, faces[j].v2, faces[j].v3, mesh_centroid);
+                G_arr[n_faces * i + i] = regularized_integral(faces[j].v1, faces[j].v2, faces[j].v3);
 
             } else {
                 // evaluating the gaussian integral
-                G_arr[n_faces * i + j] = gauss_integral(faces[j].v1, faces[j].v2, faces[j].v3, cent, mesh_centroid);
+                G_arr[n_faces * i + j] = gauss_integral(faces[j].v1, faces[j].v2, faces[j].v3, cent);
             }
         }
     }
@@ -143,6 +136,8 @@ int main(int argc, char* argv[]) {
     // solver call
     gmres_solver->apply(phi, q);
 
+    free(G_arr);
+    free(phi_arr);
     std::chrono::steady_clock::time_point end_solveMatrix = std::chrono::steady_clock::now(); // end
 
     auto time_toSolve = std::chrono::duration_cast<std::chrono::milliseconds>(end_solveMatrix - begin_solveMatrix).count();
@@ -150,18 +145,175 @@ int main(int argc, char* argv[]) {
     std::cout << "Solved G*q = phi for charge distribution in: " << time_toSolve << "ms" << std::endl;
 
     // getting the actual densities: per node and not per face
-    std::vector<int> node_counts(n_vertices, 0);
+    std::vector<float> ring_areas(n_vertices, 0.0f);
+
     for (auto& v : vertices) { v.density = 0; }
 
     for (size_t i = 0; i < n_faces; ++i) {
         auto& f = faces[i];
-        node_counts[f.v1->id]++; node_counts[f.v2->id]++; node_counts[f.v3->id]++;
-        f.v1->density += q_arr[i]; f.v2->density += q_arr[i]; f.v3->density += q_arr[i];
-    }
-    for (size_t i = 0; i < n_vertices; ++i) {
-        if (node_counts[i] > 0) { vertices[i].density /= node_counts[i]; }
+        float Ai = face_area(f.v1, f.v2, f.v3);
+        f.v1->density += q_arr[i] * Ai;
+        ring_areas[f.v1->id] += Ai;
+
+        f.v2->density += q_arr[i] * Ai;
+        ring_areas[f.v2->id] += Ai;
+
+        f.v3->density += q_arr[i] * Ai;
+        ring_areas[f.v3->id] += Ai;
     }
 
+    for (auto& v : vertices) {
+        v.density /= ring_areas[v.id];
+    }
+
+    ring_areas.clear();
+
+
+    free(q_arr);
+
     write_vtu<ValueType>(mesh_file, vertices, faces, n_vertices, n_faces);
+
+
+    /***************************************************
+     *
+     *
+     *      This part is only to ensure the convergence of solver
+     *      will be deleted or left for backup once convergence is correct
+     *
+     *
+     *      
+    *****************************************************/
+    size_t n_vertices_verif{0}, n_faces_verif{0};
+    std::vector<Vertex<ValueType>> vertices_verif;
+    std::vector<Face<ValueType>> faces_verif;
+
+    std::string mesh_file_verif = "Cylinder_6";
+
+
+    read_vtk<ValueType>(mesh_file_verif, vertices_verif, faces_verif, n_vertices_verif, n_faces_verif);
+
+    ValueType* G_arr_verif = (ValueType *) calloc(n_faces_verif * n_faces_verif, sizeof(ValueType));
+    ValueType* phi_arr_verif = (ValueType *) calloc(n_faces_verif, sizeof(ValueType));
+    ValueType* q_arr_verif = (ValueType *) calloc(n_faces_verif, sizeof(ValueType));
+
+
+    // Boundary Conditions
+    //for (auto& v : vertices) { v.potential = 10;} 
+    for (auto& v : vertices_verif) { v.potential = 10;} 
+    
+
+
+    std::cout << "Started assembling verification matrix" << std::endl;
+    
+
+    for (size_t i = 0; i < n_faces_verif; ++i) {
+        cent[0] = (faces_verif[i].v1->x + faces_verif[i].v2->x + faces_verif[i].v3->x) / 3;
+        cent[1] = (faces_verif[i].v1->y + faces_verif[i].v2->y + faces_verif[i].v3->y) / 3;
+        cent[2] = (faces_verif[i].v1->z + faces_verif[i].v2->z + faces_verif[i].v3->z) / 3;
+
+        for (size_t j = 0; j < n_faces_verif; ++j) {
+            if (i == j) {
+                // compute area of face:
+                G_arr_verif[n_faces_verif * i + i] = regularized_integral(faces_verif[j].v1, faces_verif[j].v2, faces_verif[j].v3);
+
+            } else {
+                // evaluating the gaussian integral
+                G_arr_verif[n_faces_verif * i + j] = gauss_integral(faces_verif[j].v1, faces_verif[j].v2, faces_verif[j].v3, cent);
+            }
+        }
+    }
+
+
+
+    std::cout << "finished assembling verification matrix" << std::endl;
+
+    // constructing load vector ==> density averaged over faces
+    for (size_t i = 0; i < n_faces_verif; ++i) {
+        phi_arr_verif[i] = (faces_verif[i].v1->potential + faces_verif[i].v2->potential + faces_verif[i].v3->potential) / 3.0;
+    }
+
+    //system matrix
+    std::shared_ptr<gko::matrix::Dense<ValueType>> G_verif = 
+            gko::matrix::Dense<ValueType>::create(                             
+                exec, gko::dim<2>{n_faces_verif, n_faces_verif},      
+                gko::array<ValueType>::view(exec, n_faces_verif * n_faces_verif, G_arr_verif)
+                , n_faces_verif); 
+
+    //RHS, load vector
+    std::shared_ptr<gko::matrix::Dense<ValueType>> phi_verif = 
+            gko::matrix::Dense<ValueType>::create(                             
+                exec, gko::dim<2>{n_faces_verif, 1},      
+                gko::array<ValueType>::view(exec, n_faces_verif, phi_arr_verif)
+                , 1); 
+
+    // to store solution
+    std::shared_ptr<gko::matrix::Dense<ValueType>> q_verif = 
+            gko::matrix::Dense<ValueType>::create(                             
+                exec, gko::dim<2>{n_faces_verif, 1},      
+                gko::array<ValueType>::view(exec, n_faces_verif, q_arr_verif)
+                , 1);
+
+    auto gmres_solver_verif = gmres_gen->generate(G_verif);
+
+    gmres_solver_verif->apply(phi_verif, q_verif);
+
+    std::cout << "finished solving vertification matrix" << std::endl;
+
+    free(G_arr_verif);
+    free(phi_arr_verif);
+
+    std::vector<float> ring_areas_verif(n_vertices_verif, 0.0f);
+
+    for (auto& v : vertices_verif) { v.density = 0; }
+
+    for (size_t i = 0; i < n_faces_verif; ++i) {
+        auto& f = faces_verif[i];
+        float Ai = face_area(f.v1, f.v2, f.v3);
+        f.v1->density += q_arr_verif[i] * Ai;
+        ring_areas_verif[f.v1->id] += Ai;
+
+        f.v2->density += q_arr_verif[i] * Ai;
+        ring_areas_verif[f.v2->id] += Ai;
+
+        f.v3->density += q_arr_verif[i] * Ai;
+        ring_areas_verif[f.v3->id] += Ai;
+    }
+
+    for (auto& v : vertices_verif) {
+        v.density /= ring_areas_verif[v.id];
+    }
+    
+    ring_areas_verif.clear();
+    free(q_arr_verif);
+
+
+    // evaluting the error
+    double err{0.0};
+    double min_distance{0.0}, mesh_distance{0.0}; // for getting the minimum distance
+    int close_v_id{0};
+
+
+    for (size_t v_id = 0; v_id < n_vertices; v_id++) {
+
+        min_distance = std::numeric_limits<double>::infinity();
+        close_v_id = 0;
+        for (size_t verif_v_id = 0; verif_v_id < n_vertices_verif; verif_v_id++) {
+            
+            mesh_distance = std::sqrt(std::pow(vertices[v_id].x - vertices_verif[verif_v_id].x, 2) + 
+                                        std::pow(vertices[v_id].y - vertices_verif[verif_v_id].y, 2) +
+                                        std::pow(vertices[v_id].z - vertices_verif[verif_v_id].z, 2));
+            if (mesh_distance <= min_distance) {
+                min_distance = mesh_distance;
+                close_v_id = verif_v_id;
+            }
+        }
+        err += std::pow(vertices[v_id].density - vertices_verif[close_v_id].density, 2);
+
+    }
+    err = std::sqrt(err / n_vertices);
+    std::cout << "RMSE = " << err << std::endl;
+
+
+
     return 0;
 }
