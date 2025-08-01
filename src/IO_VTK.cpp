@@ -128,10 +128,6 @@ void read_vtk(const std::string problem_name, std::vector<Vertex<T>>& vertices, 
 		nvertices += is_main_vertex[i];
 	}
 
-	
-
-	std::cout << "There are " << nall_nodes << " vertices in total!" << std::endl;
-	std::cout << nvertices << " of which are vertices for main triangles." << std::endl;
 
 	vertices = std::vector<Vertex<T>>(nvertices);
 
@@ -242,6 +238,15 @@ void write_vtu(const std::string problem_name, const std::vector<Vertex<T>>& ver
 		}
 
 		fstream << "</DataArray>" << std::endl;
+
+		fstream << "<DataArray type=\"Float32\" Name=\"density\" ";
+		fstream << "NumberOfComponents=\"1\" format=\"ascii\">" << std::endl;
+		for (int i = 0; i < nvertices; i++) {
+			fstream << vertices[i].density << std::endl;
+		}
+
+		fstream << "</DataArray>" << std::endl;
+
 		fstream << "</PointData>" << std::endl;
 
 		fstream << "</Piece>" << std::endl;

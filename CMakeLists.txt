@@ -12,20 +12,21 @@ set(CMAKE_CXX_STANDARD 17)
 SET(SOURCE_DIR "${PROJECT_SOURCE_DIR}/src")
 
 # sources to compile
-SET(SOURCES ${SOURCE_DIR}/main.cpp ${SOURCE_DIR}/IO_VTK.cpp)
+SET(SOURCES ${SOURCE_DIR}/main.cpp ${SOURCE_DIR}/IO_VTK.cpp ${SOURCE_DIR}/geo_math.cpp)
 
 # creates a directory for geometries
 file(COPY "${PROJECT_SOURCE_DIR}/geo" DESTINATION "${CMAKE_BINARY_DIR}")
 
-# linking to one file
-# execution and usage guidelines will be specified
 add_executable(main ${SOURCES})
 
 find_package(OpenMP REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 if(OpenMP_CXX_FOUND)
     target_link_libraries(main PUBLIC OpenMP::OpenMP_CXX)
 endif()
+
+target_link_libraries(main PUBLIC Eigen3::Eigen)
 
 # include directoy for hpp files
 include_directories(include)
