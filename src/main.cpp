@@ -47,9 +47,13 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Started assembling the matrix" << std::endl;
     
-    /*-----------------------------------------------------------------------------
-                 main loop to assemble the matrix: TODO parallelize
-    -----------------------------------------------------------------------------*/
+    /*****************************************************************************
+    *
+    *
+    *             main loop to assemble the matrix: TODO parallelize
+    *
+    *
+    ******************************************************************************/
 
 
     std::chrono::steady_clock::time_point begin_assembleMatrix = std::chrono::steady_clock::now(); // measure time for this section
@@ -74,8 +78,8 @@ int main(int argc, char* argv[]) {
 
     std::chrono::steady_clock::time_point end_assembleMatrix = std::chrono::steady_clock::now(); // end
 
-    /*-----------------------------------------------------------------------------
-    -----------------------------------------------------------------------------*/
+    /******************************************************************************
+    ******************************************************************************/
 
 
     auto time_toAssemble = std::chrono::duration_cast<std::chrono::milliseconds>(end_assembleMatrix - begin_assembleMatrix).count();
@@ -138,56 +142,97 @@ int main(int argc, char* argv[]) {
 
     free(G_arr);
     free(phi_arr);
+
     std::chrono::steady_clock::time_point end_solveMatrix = std::chrono::steady_clock::now(); // end
 
     auto time_toSolve = std::chrono::duration_cast<std::chrono::milliseconds>(end_solveMatrix - begin_solveMatrix).count();
     
     std::cout << "Solved G*q = phi for charge distribution in: " << time_toSolve << "ms" << std::endl;
 
-    // getting the actual densities: per node and not per face
-    std::vector<float> ring_areas(n_vertices, 0.0f);
 
-    for (auto& v : vertices) { v.density = 0; }
+    // TODO: will be moved to a seperate function: considered not very important part of the code 
+    // getting the actual densities: per node and not per face
+    std::cout << "Mapping face densities to vertices and applying smoothing..." << std::endl;
+
+    // --- Step 1: Initial area-weighted mapping (same as your original code) ---
+    std::vector<double> vertex_densities(n_vertices, 0.0); // Use double for precision
+    std::vector<double> ring_areas(n_vertices, 0.0);
 
     for (size_t i = 0; i < n_faces; ++i) {
         auto& f = faces[i];
-        float Ai = face_area(f.v1, f.v2, f.v3);
-        f.v1->density += q_arr[i] * Ai;
+        double Ai = face_area(f.v1, f.v2, f.v3);
+        
+        vertex_densities[f.v1->id] += q_arr[i] * Ai;
         ring_areas[f.v1->id] += Ai;
 
-        f.v2->density += q_arr[i] * Ai;
+        vertex_densities[f.v2->id] += q_arr[i] * Ai;
         ring_areas[f.v2->id] += Ai;
 
-        f.v3->density += q_arr[i] * Ai;
+        vertex_densities[f.v3->id] += q_arr[i] * Ai;
         ring_areas[f.v3->id] += Ai;
     }
 
-    for (auto& v : vertices) {
-        v.density /= ring_areas[v.id];
+    for (size_t i = 0; i < n_vertices; ++i) {
+        if (ring_areas[i] > 1e-12) { // Avoid division by zero
+            vertex_densities[i] /= ring_areas[i];
+        }
+    }
+    ring_areas.clear();
+    free(q_arr);
+
+
+    // --- Step 2: Build vertex adjacency list for neighbor finding ---
+    std::vector<std::vector<int>> adjacency(n_vertices);
+    for (const auto& face : faces) {
+        int v1_id = face.v1->id;
+        int v2_id = face.v2->id;
+        int v3_id = face.v3->id;
+        // Add edges to adjacency list, avoiding duplicates
+        adjacency[v1_id].push_back(v2_id); adjacency[v1_id].push_back(v3_id);
+        adjacency[v2_id].push_back(v1_id); adjacency[v2_id].push_back(v3_id);
+        adjacency[v3_id].push_back(v1_id); adjacency[v3_id].push_back(v2_id);
+    }
+    // Clean up duplicates
+    for(auto& neighbors : adjacency) {
+        std::sort(neighbors.begin(), neighbors.end());
+        neighbors.erase(std::unique(neighbors.begin(), neighbors.end()), neighbors.end());
     }
 
-    ring_areas.clear();
+
+    // --- Step 3: Apply Laplacian Smoothing ---
+    const int smoothing_iterations = 2; // Tune this parameter (5-20 is a good range)
+    std::vector<double> smoothed_densities = vertex_densities; // Work on a copy
+
+    for (int iter = 0; iter < smoothing_iterations; ++iter) {
+        for (size_t i = 0; i < n_vertices; ++i) {
+            if (adjacency[i].empty()) continue;
+
+            double neighbor_sum = 0.0;
+            for (int neighbor_id : adjacency[i]) {
+                neighbor_sum += vertex_densities[neighbor_id];
+            }
+            smoothed_densities[i] = neighbor_sum / adjacency[i].size();
+        }
+        vertex_densities = smoothed_densities; // Update for the next iteration
+    }
 
 
-    free(q_arr);
+    // --- Final Step: Assign smoothed densities back to the main vertex data structure ---
+    for (auto& v : vertices) {
+        v.density = vertex_densities[v.id];
+    }
+
+    std::cout << "Smoothing complete." << std::endl;
+
+
 
     write_vtu<ValueType>(mesh_file, vertices, faces, n_vertices, n_faces);
 
-
-    /***************************************************
-     *
-     *
-     *      This part is only to ensure the convergence of solver
-     *      will be deleted or left for backup once convergence is correct
-     *
-     *
-     *      
-    *****************************************************/
     size_t n_vertices_verif{0}, n_faces_verif{0};
     std::vector<Vertex<ValueType>> vertices_verif;
     std::vector<Face<ValueType>> faces_verif;
 
-    std::string mesh_file_verif = "Cylinder_6";
+    std::string mesh_file_verif = "Cylinder_7";
 
 
     read_vtk<ValueType>(mesh_file_verif, vertices_verif, faces_verif, n_vertices_verif, n_faces_verif);
@@ -262,29 +307,75 @@ int main(int argc, char* argv[]) {
     free(G_arr_verif);
     free(phi_arr_verif);
 
-    std::vector<float> ring_areas_verif(n_vertices_verif, 0.0f);
-
-    for (auto& v : vertices_verif) { v.density = 0; }
+    // --- Step 1: Initial area-weighted mapping (same as your original code) ---
+    std::vector<double> vertex_densities_verif(n_vertices_verif, 0.0); // Use double for precision
+    std::vector<double> ring_areas_verif(n_vertices_verif, 0.0);
 
     for (size_t i = 0; i < n_faces_verif; ++i) {
         auto& f = faces_verif[i];
-        float Ai = face_area(f.v1, f.v2, f.v3);
-        f.v1->density += q_arr_verif[i] * Ai;
+        double Ai = face_area(f.v1, f.v2, f.v3);
+        
+        vertex_densities_verif[f.v1->id] += q_arr_verif[i] * Ai;
         ring_areas_verif[f.v1->id] += Ai;
 
-        f.v2->density += q_arr_verif[i] * Ai;
+        vertex_densities_verif[f.v2->id] += q_arr_verif[i] * Ai;
         ring_areas_verif[f.v2->id] += Ai;
 
-        f.v3->density += q_arr_verif[i] * Ai;
+        vertex_densities_verif[f.v3->id] += q_arr_verif[i] * Ai;
         ring_areas_verif[f.v3->id] += Ai;
     }
 
-    for (auto& v : vertices_verif) {
-        v.density /= ring_areas_verif[v.id];
+    for (size_t i = 0; i < n_vertices_verif; ++i) {
+        if (ring_areas_verif[i] > 1e-12) { // Avoid division by zero
+            vertex_densities_verif[i] /= ring_areas_verif[i];
+        }
     }
-    
     ring_areas_verif.clear();
     free(q_arr_verif);
+
+
+    // --- Step 2: Build vertex adjacency list for neighbor finding ---
+    std::vector<std::vector<int>> adjacency_verif(n_vertices_verif);
+    for (const auto& face : faces_verif) {
+        int v1_id = face.v1->id;
+        int v2_id = face.v2->id;
+        int v3_id = face.v3->id;
+        // Add edges to adjacency list, avoiding duplicates
+        adjacency_verif[v1_id].push_back(v2_id); adjacency_verif[v1_id].push_back(v3_id);
+        adjacency_verif[v2_id].push_back(v1_id); adjacency_verif[v2_id].push_back(v3_id);
+        adjacency_verif[v3_id].push_back(v1_id); adjacency_verif[v3_id].push_back(v2_id);
+    }
+    // Clean up duplicates
+    for(auto& neighbors : adjacency_verif) {
+        std::sort(neighbors.begin(), neighbors.end());
+        neighbors.erase(std::unique(neighbors.begin(), neighbors.end()), neighbors.end());
+    }
+
+
+    // --- Step 3: Apply Laplacian Smoothing ---
+    std::vector<double> smoothed_densities_verif = vertex_densities_verif; // Work on a copy
+
+    for (int iter = 0; iter < smoothing_iterations; ++iter) {
+        for (size_t i = 0; i < n_vertices_verif; ++i) {
+            if (adjacency_verif[i].empty()) continue;
+
+            double neighbor_sum = 0.0;
+            for (int neighbor_id : adjacency_verif[i]) {
+                neighbor_sum += vertex_densities_verif[neighbor_id];
+            }
+            smoothed_densities_verif[i] = neighbor_sum / adjacency_verif[i].size();
+        }
+        vertex_densities_verif = smoothed_densities_verif; // Update for the next iteration
+    }
+
+
+    // --- Final Step: Assign smoothed densities back to the main vertex data structure ---
+    for (auto& v : vertices_verif) {
+        v.density = vertex_densities_verif[v.id];
+    }
+
+    std::cout << "Smoothing complete." << std::endl;
+
 
 
     // evaluting the error
