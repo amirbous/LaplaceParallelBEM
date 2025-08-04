@@ -6,12 +6,12 @@ Parallel Boundary Element Method implementation for 3D Laplace
 - TODO: 
     - [ ] Parallelize building matrix: OpenMP
     - [ ] MPI distributed matrix assembly
-	- [ ] ParTEMIS for splitting the mesh based on graph splitting
+    - [ ] I don't mind duplicating the data
 - Implemented
     - [x] Load and write geometry with densities correctly
     - [x] Ensure convergence
     - [x] Link ginkgo as solver
-	- [x] rewrite with ID instead of pointer for later access when using MPI
+    - [x] rewrite with ID instead of pointer for later access when using MPI
 
 #### Example models
 

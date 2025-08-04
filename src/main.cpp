@@ -12,6 +12,8 @@
 #include "../include/IO_VTK.hpp"
 #include "../include/geo_math.hpp"
 
+#include <mpi.h>
+
 
 int main(int argc, char* argv[]) {
     using ValueType = double;
@@ -28,6 +30,20 @@ int main(int argc, char* argv[]) {
 
     read_vtk<ValueType>(mesh_file, vertices, faces, n_vertices, n_faces);
     std::cout << "Mesh: " << mesh_file << ", " << n_vertices << " nodes, " << n_faces << " faces" << std::endl;
+
+    int my_rank, world_size;
+
+    MPI_Init(NULL, NULL);
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+
+        std::cout << my_rank << std::endl;
+    MPI_Finalize();
+
+
+
+
+
 
 
 
