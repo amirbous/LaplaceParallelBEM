@@ -35,19 +35,18 @@ struct Vertex {
 
 };
 
-template
-<typename T>
+
 struct Face {
 
-	Face(Vertex<T>* v1, Vertex<T>* v2, Vertex<T>* v3)
+	Face(int v1, int v2, int v3)
         : v1(v1), v2(v2), v3(v3) {}
     Face()
-        : v1(), v2(), v3() {}
+        : v1(0), v2(0), v3(0) {}
 
         
-    Vertex<T>* v1;
-    Vertex<T>* v2;
-    Vertex<T>* v3;
+    int v1;
+    int v2;
+    int v3;
 
 
 

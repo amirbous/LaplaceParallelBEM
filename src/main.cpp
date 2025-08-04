@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
 
     size_t n_vertices{0}, n_faces{0};
     std::vector<Vertex<ValueType>> vertices;
-    std::vector<Face<ValueType>> faces;
+    std::vector<Face> faces;
 
 
     float cent[3];
@@ -53,9 +53,9 @@ int main(int argc, char* argv[]) {
 
     // Step 1: Compute all centroids in parallel
     for (size_t i = 0; i < n_faces; ++i) {
-        centroids[i][0] = (faces[i].v1->x + faces[i].v2->x + faces[i].v3->x) / 3;
-        centroids[i][1] = (faces[i].v1->y + faces[i].v2->y + faces[i].v3->y) / 3;
-        centroids[i][2] = (faces[i].v1->z + faces[i].v2->z + faces[i].v3->z) / 3;
+        centroids[i][0] = (vertices[faces[i].v1].x + vertices[faces[i].v2].x + vertices[faces[i].v3].x) / 3;
+        centroids[i][1] = (vertices[faces[i].v1].y + vertices[faces[i].v2].y + vertices[faces[i].v3].y) / 3;
+        centroids[i][2] = (vertices[faces[i].v1].z + vertices[faces[i].v2].z + vertices[faces[i].v3].z) / 3;
     }
 
 
@@ -66,49 +66,44 @@ int main(int argc, char* argv[]) {
     for (size_t i = 0; i < n_faces; ++i) {
     // Compute centroid *once* for face i, private to each thread
 
-    cent[0] = (faces[i].v1->x + faces[i].v2->x + faces[i].v3->x) / 3.0;
-    cent[1] = (faces[i].v1->y + faces[i].v2->y + faces[i].v3->y) / 3.0;
-    cent[2] = (faces[i].v1->z + faces[i].v2->z + faces[i].v3->z) / 3.0;
+    cent[0] = (vertices[faces[i].v1].x + vertices[faces[i].v2].x + vertices[faces[i].v3].x) / 3;
+    cent[1] = (vertices[faces[i].v1].y + vertices[faces[i].v2].y + vertices[faces[i].v3].y) / 3;
+    cent[2] = (vertices[faces[i].v1].z + vertices[faces[i].v2].z + vertices[faces[i].v3].z) / 3;
 
     for (size_t j = 0; j < n_faces; ++j) {
 
 
             G_arr[n_faces * i + j] = i == j ? 
-                                        regularized_integral(faces[i].v1,
-                                              faces[i].v2,
-                                              faces[i].v3) 
+                                        regularized_integral(vertices[faces[i].v1],
+                                              vertices[faces[i].v2],
+                                              vertices[faces[i].v3]) 
                                         :
 
-                                        gauss_integral(faces[j].v1,
-                                        faces[j].v2,
-                                        faces[j].v3,
+                                        gauss_integral(vertices[faces[j].v1],
+                                        vertices[faces[j].v2],
+                                        vertices[faces[j].v3],
                                         cent);
 
+        }
     }
-}
+
+    std::chrono::steady_clock::time_point end_assembleMatrix = std::chrono::steady_clock::now(); // end
 
 
 
-
-    #pragma omp parallel for private(cent) 
+    #pragma omp parallel for collapse(2)
     for (size_t i = 0; i < n_faces; ++i) {
- 
-        cent[0] = (faces[i].v1->x + faces[i].v2->x + faces[i].v3->x) / 3.0;
-        cent[1] = (faces[i].v1->y + faces[i].v2->y + faces[i].v3->y) / 3.0;
-        cent[2] = (faces[i].v1->z + faces[i].v2->z + faces[i].v3->z) / 3.0;
-        
         for (size_t j = 0; j < n_faces; ++j) {   
                 G_arr[n_faces * i + j] = i == j ? 
-                          regularized_integral(faces[i].v1,
-                          faces[i].v2, faces[i].v3) 
+                          regularized_integral(vertices[faces[i].v1],
+                          vertices[faces[i].v2], vertices[faces[i].v3]) 
                                         :
-                          gauss_integral(faces[j].v1, faces[j].v2,
-                                         faces[j].v3, cent);
+                          gauss_integral(vertices[faces[j].v1], vertices[faces[j].v2],
+                                         vertices[faces[j].v3], centroids[i]);
         }       
     }
 
 
-    std::chrono::steady_clock::time_point end_assembleMatrix = std::chrono::steady_clock::now(); // end
 
     /******************************************************************************
     ******************************************************************************/
@@ -119,7 +114,7 @@ int main(int argc, char* argv[]) {
 
     // constructing load vector ==> density averaged over faces
     for (size_t i = 0; i < n_faces; ++i) {
-        phi_arr[i] = (faces[i].v1->potential + faces[i].v2->potential + faces[i].v3->potential) / 3.0;
+        phi_arr[i] = (vertices[faces[i].v1].potential + vertices[faces[i].v2].potential + vertices[faces[i].v3].potential) / 3.0;
     }
 
 
@@ -194,16 +189,16 @@ int main(int argc, char* argv[]) {
 
     for (size_t i = 0; i < n_faces; ++i) {
         auto& f = faces[i];
-        double Ai = face_area(f.v1, f.v2, f.v3);
+        double Ai = face_area(vertices[f.v1], vertices[f.v2], vertices[f.v3]);
         
-        vertex_densities[f.v1->id] += q_arr[i] * Ai;
-        ring_areas[f.v1->id] += Ai;
+        vertex_densities[f.v1] += q_arr[i] * Ai;
+        ring_areas[f.v1] += Ai;
 
-        vertex_densities[f.v2->id] += q_arr[i] * Ai;
-        ring_areas[f.v2->id] += Ai;
+        vertex_densities[f.v2] += q_arr[i] * Ai;
+        ring_areas[f.v2] += Ai;
 
-        vertex_densities[f.v3->id] += q_arr[i] * Ai;
-        ring_areas[f.v3->id] += Ai;
+        vertex_densities[f.v3] += q_arr[i] * Ai;
+        ring_areas[f.v3] += Ai;
     }
 
     for (size_t i = 0; i < n_vertices; ++i) {
@@ -218,13 +213,11 @@ int main(int argc, char* argv[]) {
 
     std::vector<std::vector<int>> adjacency(n_vertices);
     for (const auto& face : faces) {
-        int v1_id = face.v1->id;
-        int v2_id = face.v2->id;
-        int v3_id = face.v3->id;
+
         // Add edges to adjacency list, avoiding duplicates
-        adjacency[v1_id].push_back(v2_id); adjacency[v1_id].push_back(v3_id);
-        adjacency[v2_id].push_back(v1_id); adjacency[v2_id].push_back(v3_id);
-        adjacency[v3_id].push_back(v1_id); adjacency[v3_id].push_back(v2_id);
+        adjacency[face.v1].push_back(face.v2); adjacency[face.v1].push_back(face.v3);
+        adjacency[face.v2].push_back(face.v1); adjacency[face.v2].push_back(face.v3);
+        adjacency[face.v3].push_back(face.v1); adjacency[face.v3].push_back(face.v2);
     }
     // Clean up duplicates
     for(auto& neighbors : adjacency) {

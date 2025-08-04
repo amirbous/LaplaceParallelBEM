@@ -4,7 +4,7 @@
 template <typename T>
 struct Vertex;
 
-template <typename T>
+
 struct Face;
 
 
@@ -27,14 +27,14 @@ static const double gp[6][2] = {{0.659027622374092, 0.231933368553031}, {0.65902
 // compute the area of 3d triangle
 template
 <typename T>
-float face_area(const Vertex<T>* v1, const Vertex<T>* v2, 
-					const Vertex<T>* v3);
+float face_area(const Vertex<T> v1, const Vertex<T> v2, 
+					const Vertex<T> v3);
 
 // gauss integral: actual integral for the evaluation of matrix coefficients
 template
 <typename T>
-double gauss_integral(const Vertex<T>* v1,
-                    const Vertex<T>* v2, const Vertex<T>* v3, float cent[3]);
+double gauss_integral(const Vertex<T> v1,
+                    const Vertex<T> v2, const Vertex<T> v3, float cent[3]);
 
 
 
@@ -42,8 +42,8 @@ double gauss_integral(const Vertex<T>* v1,
 // regularized integral in case the integral triangle collides with the same triangle
 template
 <typename T>
-double regularized_integral(const Vertex<T>* v1,
-                    const Vertex<T>* v2, const Vertex<T>* v3);
+double regularized_integral(const Vertex<T> v1,
+                    const Vertex<T> v2, const Vertex<T> v3);
 #endif
 
 // tarik masdoud
