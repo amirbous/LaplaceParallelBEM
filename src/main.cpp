@@ -22,9 +22,7 @@ int main(int argc, char* argv[]) {
     std::vector<Face<ValueType>> faces;
 
 
-
-    float mesh_centroid[] = {0.0f, 0.0f, 0.0f};
-    float cent[] = {0.0f, 0.0f, 0.0f};
+    float cent[3];
 
 
 
@@ -39,11 +37,8 @@ int main(int argc, char* argv[]) {
 
 
     // Boundary Conditions
-    //for (auto& v : vertices) { v.potential = 10;} 
     for (auto& v : vertices) { v.potential = 10;} 
     
-    // compute the center of the object
-
 
     std::cout << "Started assembling the matrix" << std::endl;
     
@@ -54,27 +49,64 @@ int main(int argc, char* argv[]) {
     *
     *
     ******************************************************************************/
+   float (*centroids)[3] = (float (*)[3])malloc(n_faces * sizeof(float[3]));
+
+    // Step 1: Compute all centroids in parallel
+    for (size_t i = 0; i < n_faces; ++i) {
+        centroids[i][0] = (faces[i].v1->x + faces[i].v2->x + faces[i].v3->x) / 3;
+        centroids[i][1] = (faces[i].v1->y + faces[i].v2->y + faces[i].v3->y) / 3;
+        centroids[i][2] = (faces[i].v1->z + faces[i].v2->z + faces[i].v3->z) / 3;
+    }
 
 
     std::chrono::steady_clock::time_point begin_assembleMatrix = std::chrono::steady_clock::now(); // measure time for this section
 
 
+    #pragma omp parallel for private(cent)
     for (size_t i = 0; i < n_faces; ++i) {
-        cent[0] = (faces[i].v1->x + faces[i].v2->x + faces[i].v3->x) / 3;
-        cent[1] = (faces[i].v1->y + faces[i].v2->y + faces[i].v3->y) / 3;
-        cent[2] = (faces[i].v1->z + faces[i].v2->z + faces[i].v3->z) / 3;
+    // Compute centroid *once* for face i, private to each thread
 
-        for (size_t j = 0; j < n_faces; ++j) {
-            if (i == j) {
-                // compute area of face:
-                G_arr[n_faces * i + i] = regularized_integral(faces[j].v1, faces[j].v2, faces[j].v3);
+    cent[0] = (faces[i].v1->x + faces[i].v2->x + faces[i].v3->x) / 3.0;
+    cent[1] = (faces[i].v1->y + faces[i].v2->y + faces[i].v3->y) / 3.0;
+    cent[2] = (faces[i].v1->z + faces[i].v2->z + faces[i].v3->z) / 3.0;
 
-            } else {
-                // evaluating the gaussian integral
-                G_arr[n_faces * i + j] = gauss_integral(faces[j].v1, faces[j].v2, faces[j].v3, cent);
-            }
-        }
+    for (size_t j = 0; j < n_faces; ++j) {
+
+
+            G_arr[n_faces * i + j] = i == j ? 
+                                        regularized_integral(faces[i].v1,
+                                              faces[i].v2,
+                                              faces[i].v3) 
+                                        :
+
+                                        gauss_integral(faces[j].v1,
+                                        faces[j].v2,
+                                        faces[j].v3,
+                                        cent);
+
     }
+}
+
+
+
+
+    #pragma omp parallel for private(cent) 
+    for (size_t i = 0; i < n_faces; ++i) {
+ 
+        cent[0] = (faces[i].v1->x + faces[i].v2->x + faces[i].v3->x) / 3.0;
+        cent[1] = (faces[i].v1->y + faces[i].v2->y + faces[i].v3->y) / 3.0;
+        cent[2] = (faces[i].v1->z + faces[i].v2->z + faces[i].v3->z) / 3.0;
+        
+        for (size_t j = 0; j < n_faces; ++j) {   
+                G_arr[n_faces * i + j] = i == j ? 
+                          regularized_integral(faces[i].v1,
+                          faces[i].v2, faces[i].v3) 
+                                        :
+                          gauss_integral(faces[j].v1, faces[j].v2,
+                                         faces[j].v3, cent);
+        }       
+    }
+
 
     std::chrono::steady_clock::time_point end_assembleMatrix = std::chrono::steady_clock::now(); // end
 
@@ -132,6 +164,8 @@ int main(int argc, char* argv[]) {
                 .on(exec))
         .on(exec);
 
+
+
     auto gmres_solver = gmres_gen->generate(G);
 
 
@@ -155,8 +189,8 @@ int main(int argc, char* argv[]) {
     std::cout << "Mapping face densities to vertices and applying smoothing..." << std::endl;
 
     // --- Step 1: Initial area-weighted mapping (same as your original code) ---
-    std::vector<double> vertex_densities(n_vertices, 0.0); // Use double for precision
-    std::vector<double> ring_areas(n_vertices, 0.0);
+    std::vector<ValueType> vertex_densities(n_vertices, 0.0); // Use double for precision
+    std::vector<ValueType> ring_areas(n_vertices, 0.0);
 
     for (size_t i = 0; i < n_faces; ++i) {
         auto& f = faces[i];
@@ -181,7 +215,7 @@ int main(int argc, char* argv[]) {
     free(q_arr);
 
 
-    // --- Step 2: Build vertex adjacency list for neighbor finding ---
+
     std::vector<std::vector<int>> adjacency(n_vertices);
     for (const auto& face : faces) {
         int v1_id = face.v1->id;
@@ -199,8 +233,8 @@ int main(int argc, char* argv[]) {
     }
 
 
-    // --- Step 3: Apply Laplacian Smoothing ---
-    const int smoothing_iterations = 2; // Tune this parameter (5-20 is a good range)
+
+    const int smoothing_iterations = 1; 
     std::vector<double> smoothed_densities = vertex_densities; // Work on a copy
 
     for (int iter = 0; iter < smoothing_iterations; ++iter) {
