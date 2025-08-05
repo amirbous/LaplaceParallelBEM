@@ -19,6 +19,15 @@ struct Vertex {
 	       x(other.x), y(other.y), z(other.z),
 	       potential(other.potential), density(other.density), id(other.id) {}
 
+    bool operator<(const Vertex& other) const {
+        return id < other.id;
+    }
+
+
+    bool operator==(const Vertex& other) const {
+        return id == other.id;
+    }
+    
 	float x;
 	float y;
 	float z;

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <map>
 
 #include <chrono>
 #include <limits>
@@ -23,36 +24,47 @@ int main(int argc, char* argv[]) {
 
     MPI_Init(NULL, NULL);
 
+    MPI_Status status;
+
+
     int my_rank, world_size;
     int ierror;
 
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
-    int total_n_vertices{0}, total_n_faces{0};
-    int local_n_vertices{0}, local_n_faces{0};
-    int faces_base{0}, faces_remainder{0};
-    int faces_chunk_size{0};
-    int max_chunk_size{0};
-    std::vector<Vertex> all_vertices;
-    std::vector<Face> all_faces;
-    std::vector<Vertex> local_vertices;
-    std::vector<Face> local_faces;
 
 
-    float cent[3];
 
     create_MPIFace_type();
     create_MPIVertex_type();
 
+    int total_n_vertices{0}, total_n_faces{0};
+    int local_n_vertices{0}, local_n_faces{0};
+    int faces_base{0}, faces_remainder{0};
+    int faces_chunk_size{0};
+    int max_chunk_faces{0}, max_repeating_vertices{0};
+    int n_ownrank_repeating_vertices{0};
+    int curr_offset{0};
+
+    std::vector<Vertex> all_vertices;
+    std::vector<Face> all_faces;
+    std::vector<Vertex> local_vertices;
+    std::vector<Vertex> repeating_vertices_send_buffer;
+    std::vector<Face> local_faces;
+
+    std::map<int, int> global_id_to_local;
+
+    float cent[3];
+
+
     if (my_rank == 0) {
-        int curr_offset{0}
 
+        
 
-
+        int request_count = 0;
         std::string mesh_file = (argc > 1 ? argv[1] : "sphere");
 
-        std::cout << "Proc. 1 is reading the geometry" << std::endl;
         read_vtk(mesh_file, all_vertices, all_faces, total_n_vertices, total_n_faces);
         std::cout << "Prod. 1 finished reading the geometry!" << std::endl 
                   << "Mesh: " << mesh_file << ", " << total_n_vertices << 
@@ -61,59 +73,147 @@ int main(int argc, char* argv[]) {
         
     MPI_Bcast(&total_n_faces, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&total_n_vertices, 1, MPI_INT, 0, MPI_COMM_WORLD);
-
+    
+    MPI_Barrier(MPI_COMM_WORLD);
 
     if (my_rank == 0) {
+        std::vector<MPI_Request> request_faces(world_size - 1);
+        std::vector<MPI_Request> request_vertices(world_size - 1);
+        int n_repeating_vertices_per_rank{0};
 
+        // The way people do it in mpi
         faces_base = total_n_faces / world_size;
         faces_remainder = total_n_faces % world_size;
 
-        local_n_faces = (0 < faces_remainder) ? faces_base + 1 : faces_base;
+        local_n_faces = (my_rank /* = 0*/ < faces_remainder) ? faces_base + 1 : faces_base;
         local_faces.assign(all_faces.begin(), all_faces.begin() + local_n_faces);
-        current_offset = local_n_faces;
 
+
+
+        n_ownrank_repeating_vertices = local_n_faces * 3;
+        local_vertices.reserve(n_ownrank_repeating_vertices);
+
+        // TODO : if this is too slow, move later
+        for (int j = 0; j < local_n_faces; j++) {
+                local_vertices.push_back(Vertex(all_vertices[all_faces[j].v1]));
+                local_vertices.push_back(Vertex(all_vertices[all_faces[j].v2]));
+                local_vertices.push_back(Vertex(all_vertices[all_faces[j].v3]));
+        }
+
+        curr_offset = local_n_faces;
 
         for (int dest_rank = 1; dest_rank < world_size; dest_rank++) {
 
             faces_chunk_size = (dest_rank < faces_remainder) ? faces_base + 1 : faces_base;
 
-            MPI_Send(all_faces.data() + current_offset,
-                     dest_chunk_size, MPI_FACE, dest_rank, 44, MPI_COMM_WORLD);
+            //forward the faces
+            MPI_Isend(all_faces.data() + curr_offset,
+                     faces_chunk_size, MPI_FACE, dest_rank, 44, MPI_COMM_WORLD, &request_faces[dest_rank - 1]);
 
-            current_offset += dest_chunk_size;
+            n_repeating_vertices_per_rank = faces_chunk_size * 3;
+            repeating_vertices_send_buffer.clear();
+            repeating_vertices_send_buffer.reserve(n_repeating_vertices_per_rank);
+
+            for (int j = curr_offset; j < curr_offset + faces_chunk_size; j++) {
+
+                repeating_vertices_send_buffer.push_back(Vertex(all_vertices[all_faces[j].v1]));
+                repeating_vertices_send_buffer.push_back(Vertex(all_vertices[all_faces[j].v2]));
+                repeating_vertices_send_buffer.push_back(Vertex(all_vertices[all_faces[j].v3]));
+
+            }
+
+
+            MPI_Isend(repeating_vertices_send_buffer.data(),
+                n_repeating_vertices_per_rank, MPI_VERTEX, dest_rank, 43, MPI_COMM_WORLD, &request_vertices[dest_rank - 1]);
+
+
+            curr_offset += faces_chunk_size;
 
         }
+        MPI_Waitall(world_size - 1, request_faces.data(), MPI_STATUSES_IGNORE);
+        MPI_Waitall(world_size - 1, request_vertices.data(), MPI_STATUSES_IGNORE);
+
+        repeating_vertices_send_buffer.clear();
+
     }
+
     else {
+
         faces_base = total_n_faces / world_size;
         faces_remainder = total_n_faces % world_size;
 
         local_n_faces = (my_rank < faces_remainder) ? faces_base + 1 : faces_base;
 
-        max_chunk_size = faces_base + 1;
+        max_chunk_faces = faces_base + 1;
+
+        local_faces.resize(max_chunk_faces);
+
+        MPI_Recv(local_faces.data(), local_n_faces, MPI_FACE, 0, 44, MPI_COMM_WORLD, &status);
+
+        n_ownrank_repeating_vertices = local_n_faces * 3;
+        local_vertices.resize(n_ownrank_repeating_vertices);
+
+        MPI_Recv(local_vertices.data(), n_ownrank_repeating_vertices, 
+            MPI_VERTEX, 0, 43, MPI_COMM_WORLD, &status);
 
     }
 
-    local_n_faces = total_n_faces / world_size;
-
-    std::cout << "rank " << my_rank << " has total_n_faces: " << total_n_faces << std::endl;
-
-
-    std::vector<Face> local_faces(local_n_faces);
-
-
-    MPI_Scatter(all_faces.data(), local_n_faces, MPI_FACE, local_faces.data(), local_n_faces,  
-        MPI_FACE, 0, MPI_COMM_WORLD);
 
 
 
+    std::sort(local_vertices.begin(), local_vertices.end());
+    auto last = std::unique(local_vertices.begin(), local_vertices.end());
+    local_vertices.erase(last, local_vertices.end());
 
-    std::cout << std::endl;
+    local_n_vertices = local_vertices.size();
 
 
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    std::cout << "Proc. rank " << my_rank << " has " << local_n_faces << " faces and " << local_n_vertices << " vertices!" << std::endl;
+
+
+    // map vertex ids to local ids
+    for (int i = 0; i < local_n_vertices; i++) {
+        global_id_to_local[local_vertices[i].id] = i;
+    }
+
+    for (int i = 0; i < local_n_faces; i++) {
+        local_faces[i].v1 = global_id_to_local[local_faces[i].v1];
+        local_faces[i].v2 = global_id_to_local[local_faces[i].v2];
+        local_faces[i].v3 = global_id_to_local[local_faces[i].v3];
+    }
+
+    global_id_to_local.clear();
+
+
+
+
+    // main loop for building the matrix, 
 
 
     MPI_Finalize();
+
+
+    return 0;
+
+}
+
+
+
+
+
+
+    //MPI_Scatter(all_faces.data(), local_n_faces, MPI_FACE, local_faces.data(), local_n_faces,  
+      //  MPI_FACE, 0, MPI_COMM_WORLD);
+
+
+
+
+   // std::cout << std::endl;
+
+
+
 
 
 
@@ -337,5 +437,3 @@ int main(int argc, char* argv[]) {
 
 
 */
-    return 0;
-}
