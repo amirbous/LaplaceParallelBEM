@@ -12,7 +12,7 @@
 template
 <typename T>
 void read_vtk(const std::string problem_name, std::vector<Vertex<T>>& vertices, std::vector<Face>& faces,
-				size_t& nvertices, size_t& nfaces) {
+				int& nvertices, int& nfaces) {
 
 
 	// used to extract the used faces
@@ -158,7 +158,7 @@ void read_vtk(const std::string problem_name, std::vector<Vertex<T>>& vertices, 
 template 
 <typename T>
 void write_vtu(const std::string problem_name, const std::vector<Vertex<T>>& vertices, const std::vector<Face>& faces,
-							size_t &nvertices, size_t &nfaces) { 
+							int &nvertices, int &nfaces) { 
 
 
 	std::ofstream fstream;
@@ -265,15 +265,15 @@ void write_vtu(const std::string problem_name, const std::vector<Vertex<T>>& ver
 }
 
 template void write_vtu<double>(const std::string problem_name, const std::vector<Vertex<double>>& vertices, const std::vector<Face>& faces,
-							size_t &nvertices, size_t &nfaces) ;
+							int &nvertices, int &nfaces) ;
 
 
 template void read_vtk<float>(const std::string problem_name, std::vector<Vertex<float>>& vertices, std::vector<Face>& faces,
-				size_t& nvertices, size_t& nfaces); 
+				int& nvertices, int& nfaces); 
 
 template void write_vtu<float>(const std::string problem_name, const std::vector<Vertex<float>>& vertices, const std::vector<Face>& faces,
-							size_t &nvertices, size_t &nfaces);
+							int &nvertices, int &nfaces);
 
 
 template void read_vtk<double>(const std::string problem_name, std::vector<Vertex<double>>& vertices, std::vector<Face>& faces,
-				size_t& nvertices, size_t& nfaces); 
+				int& nvertices, int& nfaces); 

@@ -12,39 +12,79 @@
 #include "../include/IO_VTK.hpp"
 #include "../include/geo_math.hpp"
 
+#include "../include/MPI_utils.hpp"
+
 #include <mpi.h>
 
 
 int main(int argc, char* argv[]) {
-    using ValueType = double;
-    std::string mesh_file = (argc > 1 ? argv[1] : "sphere");
 
-    size_t n_vertices{0}, n_faces{0};
-    std::vector<Vertex<ValueType>> vertices;
-    std::vector<Face> faces;
+    using ValueType = float;
+
+    MPI_Init(NULL, NULL);
+
+    int my_rank, world_size;
+    int ierror;
+
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+
+    int total_n_vertices{0}, total_n_faces{0};
+    int local_n_vertices{0}, local_n_faces{0};
+    std::vector<Vertex<ValueType>> all_vertices;
+    std::vector<Face> all_faces;
+    std::vector<Vertex<ValueType>> local_vertices;
+
 
 
     float cent[3];
 
+    create_MPIFace_type();
+    if (my_rank == 0) {
 
 
-    read_vtk<ValueType>(mesh_file, vertices, faces, n_vertices, n_faces);
-    std::cout << "Mesh: " << mesh_file << ", " << n_vertices << " nodes, " << n_faces << " faces" << std::endl;
 
-    int my_rank, world_size;
+        std::string mesh_file = (argc > 1 ? argv[1] : "sphere");
 
-    MPI_Init(NULL, NULL);
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+        std::cout << "Proc. 1 is reading the geometry" << std::endl;
+        read_vtk<ValueType>(mesh_file, all_vertices, all_faces, total_n_vertices, total_n_faces);
+        std::cout << "Mesh: " << mesh_file << ", " << total_n_vertices << " nodes, " << total_n_faces << " faces" << std::endl;
 
-        std::cout << my_rank << std::endl;
+
+        std::cout << std::endl;
+
+    }
+
+    MPI_Bcast(&total_n_vertices, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&total_n_faces, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    local_n_faces = total_n_faces / world_size;
+
+    std::cout << "rank " << my_rank << " has total_n_faces: " << total_n_faces << std::endl;
+
+    std::vector<Face> local_faces(local_n_faces);
+
+
+    MPI_Scatter(all_faces.data(), local_n_faces, MPI_FACE, local_faces.data(), local_n_faces,  
+        MPI_FACE, 0, MPI_COMM_WORLD);
+
+    ß
+
+
+
+
+    std::cout << std::endl;
+
+
+
+
     MPI_Finalize();
 
 
 
 
 
-
+/*
 
 
     ValueType* G_arr = (ValueType *) calloc(n_faces * n_faces, sizeof(ValueType));
@@ -58,13 +98,7 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Started assembling the matrix" << std::endl;
     
-    /*****************************************************************************
-    *
-    *
-    *             main loop to assemble the matrix: TODO parallelize
-    *
-    *
-    ******************************************************************************/
+
    float (*centroids)[3] = (float (*)[3])malloc(n_faces * sizeof(float[3]));
 
     // Step 1: Compute all centroids in parallel
@@ -121,8 +155,6 @@ int main(int argc, char* argv[]) {
 
 
 
-    /******************************************************************************
-    ******************************************************************************/
 
 
     auto time_toAssemble = std::chrono::duration_cast<std::chrono::milliseconds>(end_assembleMatrix - begin_assembleMatrix).count();
@@ -134,10 +166,7 @@ int main(int argc, char* argv[]) {
     }
 
 
-    // solving the system
-    /*--------------------------------------------------
-            Solving using ginkgo
-    ---------------------------------------------------*/
+
 
 
     std::cout << gko::version_info::get() << std::endl;
@@ -272,6 +301,6 @@ int main(int argc, char* argv[]) {
     write_vtu<ValueType>(mesh_file, vertices, faces, n_vertices, n_faces);
 
 
-
+*/
     return 0;
 }
