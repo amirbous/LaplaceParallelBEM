@@ -2,37 +2,31 @@
 #define GEOMETRY_HPP
 
 
-template 
-<typename T>
 struct Vertex {
-	int id;
+	Vertex (): x(0.0f), y(0.0f), z(0.0f), 
+	           potential(0.0f), density(-1.0f), id(0) {}
 
-	Vertex (): id(0), x(0.0f), y(0.0f), z(0.0f), 
-				potential(0.0), density(-1.0)  {}
 	Vertex (int id, float x, float y, float z): 
-				id(id), x(x), y(y), z(z),
-				potential(0.0), density(-1.0){
-	}
-	Vertex (int id, float x, float y, float z, T potential) : 
-				id(id), x(x), y(y), z(z), 
-				potential(potential), density(-1.0) {
-			}
-	Vertex (int id, float x, float y, float z, T potential, T density) : 
-				id(id), x(x), y(y), z(z), 
-				potential(potential), density(density)  {
-			}
+	       x(x), y(y), z(z), potential(0.0f), density(-1.0f), id(id) {}
 
-	Vertex(const Vertex<T>& other) :
-	       		id(other.id), x(other.x), y(other.y), z(other.z),
-	       		potential(other.potential), density(other.density) {}
+	Vertex (int id, float x, float y, float z, float potential): 
+	       x(x), y(y), z(z), potential(potential), density(-1.0f), id(id) {}
+
+	Vertex (int id, float x, float y, float z, float potential, float density): 
+	       x(x), y(y), z(z), potential(potential), density(density), id(id) {}
+
+	Vertex(const Vertex& other): 
+	       x(other.x), y(other.y), z(other.z),
+	       potential(other.potential), density(other.density), id(other.id) {}
 
 	float x;
 	float y;
 	float z;
 
-	T potential;
-	T density;
+	float potential;
+	float density;
 
+	int id;
 };
 
 

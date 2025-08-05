@@ -9,9 +9,8 @@
 
 #include "../include/geometry.hpp"
 
-template
-<typename T>
-void read_vtk(const std::string problem_name, std::vector<Vertex<T>>& vertices, std::vector<Face>& faces,
+
+void read_vtk(const std::string problem_name, std::vector<Vertex>& vertices, std::vector<Face>& faces,
 				int& nvertices, int& nfaces) {
 
 
@@ -61,7 +60,7 @@ void read_vtk(const std::string problem_name, std::vector<Vertex<T>>& vertices, 
 	fstream >> word_buffer;
 
 
-	std::vector<Vertex<T>> all_vertices(nall_nodes);
+	std::vector<Vertex> all_vertices(nall_nodes);
 
 	// to extract only the main vertices
 	char *is_main_vertex = (char *) calloc(nall_nodes, sizeof(char));
@@ -72,7 +71,7 @@ void read_vtk(const std::string problem_name, std::vector<Vertex<T>>& vertices, 
 		fstream >> xi;
 		fstream >> yi;
 		fstream >> zi;
-		all_vertices[v_id] = Vertex<T>(v_id, xi, yi, zi);
+		all_vertices[v_id] = Vertex(xi, yi, zi, v_id);
 
 
 	}
@@ -129,13 +128,13 @@ void read_vtk(const std::string problem_name, std::vector<Vertex<T>>& vertices, 
 	}
 
 
-	vertices = std::vector<Vertex<T>>(nvertices);
+	vertices = std::vector<Vertex>(nvertices);
 
 	std::map<int, int> old_new_vertexId;
 
 	for (int i = 0; i < nall_nodes; i++) {
     	if (is_main_vertex[i] == 1) {
-        	vertices[global_vertexId] = Vertex<T>(all_vertices[i]);
+        	vertices[global_vertexId] = Vertex(all_vertices[i]);
         	old_new_vertexId[i] = global_vertexId++;
     	}
 	}
@@ -155,9 +154,8 @@ void read_vtk(const std::string problem_name, std::vector<Vertex<T>>& vertices, 
 
 }
 
-template 
-<typename T>
-void write_vtu(const std::string problem_name, const std::vector<Vertex<T>>& vertices, const std::vector<Face>& faces,
+
+void write_vtu(const std::string problem_name, const std::vector<Vertex>& vertices, const std::vector<Face>& faces,
 							int &nvertices, int &nfaces) { 
 
 
@@ -264,16 +262,11 @@ void write_vtu(const std::string problem_name, const std::vector<Vertex<T>>& ver
 
 }
 
-template void write_vtu<double>(const std::string problem_name, const std::vector<Vertex<double>>& vertices, const std::vector<Face>& faces,
+void write_vtu(const std::string problem_name, const std::vector<Vertex>& vertices, const std::vector<Face>& faces,
 							int &nvertices, int &nfaces) ;
 
 
-template void read_vtk<float>(const std::string problem_name, std::vector<Vertex<float>>& vertices, std::vector<Face>& faces,
-				int& nvertices, int& nfaces); 
-
-template void write_vtu<float>(const std::string problem_name, const std::vector<Vertex<float>>& vertices, const std::vector<Face>& faces,
+void write_vtu(const std::string problem_name, const std::vector<Vertex>& vertices, const std::vector<Face>& faces,
 							int &nvertices, int &nfaces);
 
 
-template void read_vtk<double>(const std::string problem_name, std::vector<Vertex<double>>& vertices, std::vector<Face>& faces,
-				int& nvertices, int& nfaces); 

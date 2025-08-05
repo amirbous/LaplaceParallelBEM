@@ -11,10 +11,9 @@
 */
 
 // mesh centroid is also needed to ensure the correct sign of the normal 
-template
-<typename T>
-float face_area(const Vertex<T> v1, const Vertex<T> v2, 
-					const Vertex<T> v3){
+
+float face_area(const Vertex v1, const Vertex v2, 
+					const Vertex v3){
 	
 	// vector to store the normal vectir (x, y, z)
 	float triangle_normal[3] = {0.0f};
@@ -55,10 +54,9 @@ float face_area(const Vertex<T> v1, const Vertex<T> v2,
 }
 
 
-template
-<typename T>
-double gauss_integral(const Vertex<T> v1,
-                    const Vertex<T> v2, const Vertex<T> v3,
+
+double gauss_integral(const Vertex v1,
+                    const Vertex v2, const Vertex v3,
                     float cent[3]) {
     
 
@@ -109,10 +107,9 @@ double gauss_integral(const Vertex<T> v1,
 
 }
 
-template
-<typename T>
-double regularized_integral(const Vertex<T> v1,
-                    const Vertex<T> v2, const Vertex<T> v3
+
+double regularized_integral(const Vertex v1,
+                    const Vertex v2, const Vertex v3
                     ) {
 
     double Gii{0.0};
@@ -129,23 +126,17 @@ double regularized_integral(const Vertex<T> v1,
 }
 
 
-template double gauss_integral<float>(const Vertex<float> v1,
-                    const Vertex<float> v2, const Vertex<float> v3,
+double gauss_integral(const Vertex v1,
+                    const Vertex v2, const Vertex v3,
                     float cent[3]);
 
 
-template double gauss_integral<double>(const Vertex<double> v1,
-                    const Vertex<double> v2, const Vertex<double> v3,
-                    float cent[3]);
 
 
-template float face_area<float>(const Vertex<float> v1, const Vertex<float> v2, 
-					const Vertex<float> v3);
-template float face_area<double>(const Vertex<double> v1, const Vertex<double> v2, 
-					const Vertex<double> v3);
+float face_area(const Vertex v1, const Vertex v2, 
+					const Vertex v3);
 
-template double regularized_integral<float>(const Vertex<float> v1,
-                    const Vertex<float> v2, const Vertex<float> v3);
 
-template double regularized_integral<double>(const Vertex<double> v1,
-                    const Vertex<double> v2, const Vertex<double> v3);
+double regularized_integral(const Vertex v1,
+                    const Vertex v2, const Vertex v3);
+

@@ -19,7 +19,7 @@
 
 int main(int argc, char* argv[]) {
 
-    using ValueType = float;
+
 
     MPI_Init(NULL, NULL);
 
@@ -31,44 +31,79 @@ int main(int argc, char* argv[]) {
 
     int total_n_vertices{0}, total_n_faces{0};
     int local_n_vertices{0}, local_n_faces{0};
-    std::vector<Vertex<ValueType>> all_vertices;
+    int faces_base{0}, faces_remainder{0};
+    int faces_chunk_size{0};
+    int max_chunk_size{0};
+    std::vector<Vertex> all_vertices;
     std::vector<Face> all_faces;
-    std::vector<Vertex<ValueType>> local_vertices;
-
+    std::vector<Vertex> local_vertices;
+    std::vector<Face> local_faces;
 
 
     float cent[3];
 
     create_MPIFace_type();
+    create_MPIVertex_type();
+
     if (my_rank == 0) {
+        int curr_offset{0}
 
 
 
         std::string mesh_file = (argc > 1 ? argv[1] : "sphere");
 
         std::cout << "Proc. 1 is reading the geometry" << std::endl;
-        read_vtk<ValueType>(mesh_file, all_vertices, all_faces, total_n_vertices, total_n_faces);
-        std::cout << "Mesh: " << mesh_file << ", " << total_n_vertices << " nodes, " << total_n_faces << " faces" << std::endl;
+        read_vtk(mesh_file, all_vertices, all_faces, total_n_vertices, total_n_faces);
+        std::cout << "Prod. 1 finished reading the geometry!" << std::endl 
+                  << "Mesh: " << mesh_file << ", " << total_n_vertices << 
+                     " nodes, " << total_n_faces << " faces" << std::endl;
+    }
+        
+    MPI_Bcast(&total_n_faces, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&total_n_vertices, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
 
-        std::cout << std::endl;
+    if (my_rank == 0) {
+
+        faces_base = total_n_faces / world_size;
+        faces_remainder = total_n_faces % world_size;
+
+        local_n_faces = (0 < faces_remainder) ? faces_base + 1 : faces_base;
+        local_faces.assign(all_faces.begin(), all_faces.begin() + local_n_faces);
+        current_offset = local_n_faces;
+
+
+        for (int dest_rank = 1; dest_rank < world_size; dest_rank++) {
+
+            faces_chunk_size = (dest_rank < faces_remainder) ? faces_base + 1 : faces_base;
+
+            MPI_Send(all_faces.data() + current_offset,
+                     dest_chunk_size, MPI_FACE, dest_rank, 44, MPI_COMM_WORLD);
+
+            current_offset += dest_chunk_size;
+
+        }
+    }
+    else {
+        faces_base = total_n_faces / world_size;
+        faces_remainder = total_n_faces % world_size;
+
+        local_n_faces = (my_rank < faces_remainder) ? faces_base + 1 : faces_base;
+
+        max_chunk_size = faces_base + 1;
 
     }
-
-    MPI_Bcast(&total_n_vertices, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&total_n_faces, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     local_n_faces = total_n_faces / world_size;
 
     std::cout << "rank " << my_rank << " has total_n_faces: " << total_n_faces << std::endl;
+
 
     std::vector<Face> local_faces(local_n_faces);
 
 
     MPI_Scatter(all_faces.data(), local_n_faces, MPI_FACE, local_faces.data(), local_n_faces,  
         MPI_FACE, 0, MPI_COMM_WORLD);
-
-    ß
 
 
 
@@ -173,30 +208,30 @@ int main(int argc, char* argv[]) {
     const auto exec = gko::OmpExecutor::create();
 
     //system matrix
-    std::shared_ptr<gko::matrix::Dense<ValueType>> G = 
-            gko::matrix::Dense<ValueType>::create(                             
+    std::shared_ptr<gko::matrix::Dense> G = 
+            gko::matrix::Dense::create(                             
                 exec, gko::dim<2>{n_faces, n_faces},      
-                gko::array<ValueType>::view(exec, n_faces * n_faces, G_arr)
+                gko::array::view(exec, n_faces * n_faces, G_arr)
                 , n_faces); 
 
     //RHS, load vector
-    std::shared_ptr<gko::matrix::Dense<ValueType>> phi = 
-            gko::matrix::Dense<ValueType>::create(                             
+    std::shared_ptr<gko::matrix::Dense> phi = 
+            gko::matrix::Dense::create(                             
                 exec, gko::dim<2>{n_faces, 1},      
-                gko::array<ValueType>::view(exec, n_faces, phi_arr)
+                gko::array::view(exec, n_faces, phi_arr)
                 , 1); 
 
     // to store solution
-    std::shared_ptr<gko::matrix::Dense<ValueType>> q = 
-            gko::matrix::Dense<ValueType>::create(                             
+    std::shared_ptr<gko::matrix::Dense> q = 
+            gko::matrix::Dense::create(                             
                 exec, gko::dim<2>{n_faces, 1},      
-                gko::array<ValueType>::view(exec, n_faces, q_arr)
+                gko::array::view(exec, n_faces, q_arr)
                 , 1);
 
-    auto gmres_gen = gko::solver::Gmres<ValueType>::build()
+    auto gmres_gen = gko::solver::Gmres::build()
         .with_criteria(
             gko::stop::Iteration::build().with_max_iters(200u).on(exec),
-            gko::stop::ResidualNorm<ValueType>::build()
+            gko::stop::ResidualNorm::build()
                 .with_reduction_factor(1e-6).on(exec))
         .with_preconditioner(
             gko::preconditioner::Jacobi<ValueType, int>::build()
@@ -229,8 +264,8 @@ int main(int argc, char* argv[]) {
     std::cout << "Mapping face densities to vertices and applying smoothing..." << std::endl;
 
     // --- Step 1: Initial area-weighted mapping (same as your original code) ---
-    std::vector<ValueType> vertex_densities(n_vertices, 0.0); // Use double for precision
-    std::vector<ValueType> ring_areas(n_vertices, 0.0);
+    std::vector vertex_densities(n_vertices, 0.0); // Use double for precision
+    std::vector ring_areas(n_vertices, 0.0);
 
     for (size_t i = 0; i < n_faces; ++i) {
         auto& f = faces[i];
@@ -298,7 +333,7 @@ int main(int argc, char* argv[]) {
 
 
 
-    write_vtu<ValueType>(mesh_file, vertices, faces, n_vertices, n_faces);
+    write_vtu(mesh_file, vertices, faces, n_vertices, n_faces);
 
 
 */
