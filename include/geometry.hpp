@@ -6,13 +6,13 @@ struct Vertex {
 	Vertex (): x(0.0f), y(0.0f), z(0.0f), 
 	           potential(0.0f), density(-1.0f), id(0) {}
 
-	Vertex (int id, float x, float y, float z): 
+	Vertex (float x, float y, float z, int id): 
 	       x(x), y(y), z(z), potential(0.0f), density(-1.0f), id(id) {}
 
-	Vertex (int id, float x, float y, float z, float potential): 
+	Vertex (float x, float y, float z, float potential, int id): 
 	       x(x), y(y), z(z), potential(potential), density(-1.0f), id(id) {}
 
-	Vertex (int id, float x, float y, float z, float potential, float density): 
+	Vertex (float x, float y, float z, float potential, float density, int id): 
 	       x(x), y(y), z(z), potential(potential), density(density), id(id) {}
 
 	Vertex(const Vertex& other): 
@@ -27,7 +27,7 @@ struct Vertex {
     bool operator==(const Vertex& other) const {
         return id == other.id;
     }
-    
+
 	float x;
 	float y;
 	float z;

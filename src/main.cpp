@@ -43,9 +43,14 @@ int main(int argc, char* argv[]) {
     int local_n_vertices{0}, local_n_faces{0};
     int faces_base{0}, faces_remainder{0};
     int faces_chunk_size{0};
-    int max_chunk_faces{0}, max_repeating_vertices{0};
+    int max_chunk_faces{0}, max_chunk_vertices{0};
     int n_ownrank_repeating_vertices{0};
-    int curr_offset{0};
+    int distribute_faces_offset{0};
+
+    int curr_block_offset{0};
+
+    std::vector<int> world_n_faces(world_size);
+    std::vector<int> world_n_vertices(world_size);
 
     std::vector<Vertex> all_vertices;
     std::vector<Face> all_faces;
@@ -62,7 +67,6 @@ int main(int argc, char* argv[]) {
 
         
 
-        int request_count = 0;
         std::string mesh_file = (argc > 1 ? argv[1] : "sphere");
 
         read_vtk(mesh_file, all_vertices, all_faces, total_n_vertices, total_n_faces);
@@ -70,22 +74,32 @@ int main(int argc, char* argv[]) {
                   << "Mesh: " << mesh_file << ", " << total_n_vertices << 
                      " nodes, " << total_n_faces << " faces" << std::endl;
     }
-        
+      
+
+
     MPI_Bcast(&total_n_faces, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&total_n_vertices, 1, MPI_INT, 0, MPI_COMM_WORLD);
     
     MPI_Barrier(MPI_COMM_WORLD);
 
+
+    // The way people do it in mpi
+
+    faces_base = total_n_faces / world_size;
+    faces_remainder = total_n_faces % world_size;
+
+    local_n_faces = (my_rank < faces_remainder) ? faces_base + 1 : faces_base;
+
+    max_chunk_faces = faces_base + 1;
+
+
+
     if (my_rank == 0) {
-        std::vector<MPI_Request> request_faces(world_size - 1);
-        std::vector<MPI_Request> request_vertices(world_size - 1);
+
         int n_repeating_vertices_per_rank{0};
+        world_n_faces[my_rank /* == 0 */] = local_n_faces;
 
-        // The way people do it in mpi
-        faces_base = total_n_faces / world_size;
-        faces_remainder = total_n_faces % world_size;
 
-        local_n_faces = (my_rank /* = 0*/ < faces_remainder) ? faces_base + 1 : faces_base;
         local_faces.assign(all_faces.begin(), all_faces.begin() + local_n_faces);
 
 
@@ -100,21 +114,23 @@ int main(int argc, char* argv[]) {
                 local_vertices.push_back(Vertex(all_vertices[all_faces[j].v3]));
         }
 
-        curr_offset = local_n_faces;
+
+        distribute_faces_offset = local_n_faces;
 
         for (int dest_rank = 1; dest_rank < world_size; dest_rank++) {
 
             faces_chunk_size = (dest_rank < faces_remainder) ? faces_base + 1 : faces_base;
+            world_n_faces[dest_rank] = faces_chunk_size;
 
             //forward the faces
-            MPI_Isend(all_faces.data() + curr_offset,
-                     faces_chunk_size, MPI_FACE, dest_rank, 44, MPI_COMM_WORLD, &request_faces[dest_rank - 1]);
+            MPI_Send(all_faces.data() + distribute_faces_offset,
+                     faces_chunk_size, MPI_FACE, dest_rank, 44, MPI_COMM_WORLD);
 
             n_repeating_vertices_per_rank = faces_chunk_size * 3;
             repeating_vertices_send_buffer.clear();
             repeating_vertices_send_buffer.reserve(n_repeating_vertices_per_rank);
 
-            for (int j = curr_offset; j < curr_offset + faces_chunk_size; j++) {
+            for (int j = distribute_faces_offset; j < distribute_faces_offset + faces_chunk_size; j++) {
 
                 repeating_vertices_send_buffer.push_back(Vertex(all_vertices[all_faces[j].v1]));
                 repeating_vertices_send_buffer.push_back(Vertex(all_vertices[all_faces[j].v2]));
@@ -123,15 +139,13 @@ int main(int argc, char* argv[]) {
             }
 
 
-            MPI_Isend(repeating_vertices_send_buffer.data(),
-                n_repeating_vertices_per_rank, MPI_VERTEX, dest_rank, 43, MPI_COMM_WORLD, &request_vertices[dest_rank - 1]);
+            MPI_Send(repeating_vertices_send_buffer.data(),
+                n_repeating_vertices_per_rank, MPI_VERTEX, dest_rank, 43, MPI_COMM_WORLD);
 
 
-            curr_offset += faces_chunk_size;
+            distribute_faces_offset += faces_chunk_size;
 
         }
-        MPI_Waitall(world_size - 1, request_faces.data(), MPI_STATUSES_IGNORE);
-        MPI_Waitall(world_size - 1, request_vertices.data(), MPI_STATUSES_IGNORE);
 
         repeating_vertices_send_buffer.clear();
 
@@ -139,16 +153,13 @@ int main(int argc, char* argv[]) {
 
     else {
 
-        faces_base = total_n_faces / world_size;
-        faces_remainder = total_n_faces % world_size;
 
-        local_n_faces = (my_rank < faces_remainder) ? faces_base + 1 : faces_base;
-
-        max_chunk_faces = faces_base + 1;
 
         local_faces.resize(max_chunk_faces);
 
+
         MPI_Recv(local_faces.data(), local_n_faces, MPI_FACE, 0, 44, MPI_COMM_WORLD, &status);
+
 
         n_ownrank_repeating_vertices = local_n_faces * 3;
         local_vertices.resize(n_ownrank_repeating_vertices);
@@ -156,9 +167,12 @@ int main(int argc, char* argv[]) {
         MPI_Recv(local_vertices.data(), n_ownrank_repeating_vertices, 
             MPI_VERTEX, 0, 43, MPI_COMM_WORLD, &status);
 
+
+
     }
 
-
+    
+    MPI_Bcast(world_n_faces.data(), world_size, MPI_INT, 0, MPI_COMM_WORLD);
 
 
     std::sort(local_vertices.begin(), local_vertices.end());
@@ -166,9 +180,18 @@ int main(int argc, char* argv[]) {
     local_vertices.erase(last, local_vertices.end());
 
     local_n_vertices = local_vertices.size();
+    
 
+    // to share 
 
     MPI_Barrier(MPI_COMM_WORLD);
+
+    MPI_Allgather(&local_n_vertices, 1, MPI_INT, world_n_vertices.data(), 1, MPI_INT, MPI_COMM_WORLD);
+
+    MPI_Allreduce(&local_n_vertices, &max_chunk_vertices, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+    local_vertices.resize(max_chunk_vertices);
+
 
     std::cout << "Proc. rank " << my_rank << " has " << local_n_faces << " faces and " << local_n_vertices << " vertices!" << std::endl;
 
@@ -186,16 +209,57 @@ int main(int argc, char* argv[]) {
 
     global_id_to_local.clear();
 
+    //switching to C style loops for convenience when loading to GPU
+    // of size max_chunk faces to also be able later receive buffers of other ranks
+    float (*centroids)[3] = (float (*)[3])calloc(max_chunk_faces, sizeof(float[3]));
+
+    // precompute centroid which will be used later
+    for (int i = 0; i < local_n_faces; ++i) {
+        centroids[i][0] = (local_vertices[local_faces[i].v1].x + local_vertices[local_faces[i].v2].x + local_vertices[local_faces[i].v3].x) / 3;
+        centroids[i][1] = (local_vertices[local_faces[i].v1].y + local_vertices[local_faces[i].v2].y + local_vertices[local_faces[i].v3].y) / 3;
+        centroids[i][2] = (local_vertices[local_faces[i].v1].z + local_vertices[local_faces[i].v2].z + local_vertices[local_faces[i].v3].z) / 3;
+    }
+
+    float* G_arr = (float *) calloc(total_n_faces * local_n_faces, sizeof(float));
+
+
+    // column offset for the diagonal
+    curr_block_offset = std::accumulate(world_n_faces.begin(), world_n_faces.begin() + my_rank, 0);
+
+    for (int i = 0; i < local_n_faces; i++) {
+        G_arr[local_n_faces * i + curr_block_offset + i] = regularized_integral(local_vertices[local_faces[i].v1],
+                                                                            local_vertices[local_faces[i].v2],
+                                                                            local_vertices[local_faces[i].v3]);
+    }
 
 
 
-    // main loop for building the matrix, 
+    
+    for (int my_j = 0; my_j < world_size; my_j++) {
+        if (my_j == my_rank) {
+            std::cout << "rank " << my_j << std::endl;
+            for (int i = 0; i < local_n_faces; i++) {
+
+                std::cout << "(" << i + curr_block_offset <<  ", " << G_arr[local_n_faces * i + curr_block_offset + i] << ")" << std::endl;
+            }
+            std::cout << std::endl;
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+
+    }
+
+
+
+
+
+
 
 
     MPI_Finalize();
 
 
     return 0;
+
 
 }
 
