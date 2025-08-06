@@ -1,7 +1,10 @@
 #include "../include/geometry.hpp"
 #include "../include/geo_math.hpp"
 
+#include <iostream>
+
 #include <cmath> 
+
 
 
 /*
@@ -53,7 +56,19 @@ float face_area(const Vertex v1, const Vertex v2,
 	return area;
 }
 
+void print_matrix(float* matrix_arr, int height, int width) {
 
+
+    for (int i = 0; i < height; i++) {
+
+        for (int j = 0;  j < width; j++) {
+            /* valus per line */
+            std::cout << "(" << i << ", " << j << ", " << matrix_arr[i * width + j] << ")" << (j % 50 != 0 ? "; " : "\n");
+        }
+        std::cout << std::endl;
+    }
+
+}
 
 double gauss_integral(const Vertex v1,
                     const Vertex v2, const Vertex v3,
