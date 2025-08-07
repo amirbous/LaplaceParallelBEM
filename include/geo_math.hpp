@@ -36,8 +36,7 @@ double gauss_integral(const Vertex v1,
 
 
 // for verifying the results
-void print_matrix(float* matrix_arr, int height, int width);
-
+void print_matrix_block(float* matrix_arr, int height, int width, int offset);
 
 // regularized integral in case the integral triangle collides with the same triangle
 
