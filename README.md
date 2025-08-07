@@ -4,7 +4,8 @@ Parallel Boundary Element Method implementation for 3D Laplace
 #### Boudary element solver for electrostatic dielectric problems using the Boundary Element Method
 
 - TODO: 
-    - [ ] Parallelize building matrix: OpenMP
+	- [ ] seperate builds for MPI and serial (OpenMP version)
+	- [ ] Parallelize building matrix: OpenMP
     - [ ] MPI distributed matrix assembly
 
 - Implemented
