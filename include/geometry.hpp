@@ -2,52 +2,54 @@
 #define GEOMETRY_HPP
 
 
-template 
-<typename T>
 struct Vertex {
-	int id;
+	Vertex (): x(0.0f), y(0.0f), z(0.0f), 
+	           potential(0.0f), density(-1.0f), id(0) {}
 
-	Vertex (): id(0), x(0.0f), y(0.0f), z(0.0f), 
-				potential(0.0), density(-1.0)  {}
-	Vertex (int id, float x, float y, float z): 
-				id(id), x(x), y(y), z(z),
-				potential(0.0), density(-1.0){
-	}
-	Vertex (int id, float x, float y, float z, T potential) : 
-				id(id), x(x), y(y), z(z), 
-				potential(potential), density(-1.0) {
-			}
-	Vertex (int id, float x, float y, float z, T potential, T density) : 
-				id(id), x(x), y(y), z(z), 
-				potential(potential), density(density)  {
-			}
+	Vertex (float x, float y, float z, int id): 
+	       x(x), y(y), z(z), potential(0.0f), density(-1.0f), id(id) {}
 
-	Vertex(const Vertex<T>& other) :
-	       		id(other.id), x(other.x), y(other.y), z(other.z),
-	       		potential(other.potential), density(other.density) {}
+	Vertex (float x, float y, float z, float potential, int id): 
+	       x(x), y(y), z(z), potential(potential), density(-1.0f), id(id) {}
+
+	Vertex (float x, float y, float z, float potential, float density, int id): 
+	       x(x), y(y), z(z), potential(potential), density(density), id(id) {}
+
+	Vertex(const Vertex& other): 
+	       x(other.x), y(other.y), z(other.z),
+	       potential(other.potential), density(other.density), id(other.id) {}
+
+    bool operator<(const Vertex& other) const {
+        return id < other.id;
+    }
+
+
+    bool operator==(const Vertex& other) const {
+        return id == other.id;
+    }
 
 	float x;
 	float y;
 	float z;
 
-	T potential;
-	T density;
+	float potential;
+	float density;
 
+	int id;
 };
 
-template
-<typename T>
+
 struct Face {
 
-	Face(Vertex<T>* v1, Vertex<T>* v2, Vertex<T>* v3)
+	Face(int v1, int v2, int v3)
         : v1(v1), v2(v2), v3(v3) {}
     Face()
-        : v1(), v2(), v3() {}
+        : v1(0), v2(0), v3(0) {}
 
         
-    Vertex<T>* v1;
-    Vertex<T>* v2;
-    Vertex<T>* v3;
+    int v1;
+    int v2;
+    int v3;
 
 
 

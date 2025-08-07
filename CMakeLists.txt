@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(GINKGO_DIR "$ENV{HOME}/ginkgo/build/install")
 
 
-# sources to compile
+# sources directory
 SET(SOURCE_DIR "${PROJECT_SOURCE_DIR}/src")
 
 # sources to compile
@@ -22,12 +22,18 @@ add_executable(main ${SOURCES})
 
 find_package(OpenMP REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(MPI REQUIRED)
+
 
 find_package(Ginkgo REQUIRED PATHS "${GINKGO_DIR}/lib/cmake/ginkgo")
 
 
 if(OpenMP_CXX_FOUND)
     target_link_libraries(main PUBLIC OpenMP::OpenMP_CXX)
+endif()
+
+if(MPI_CXX_FOUND)
+    target_link_libraries(main PUBLIC MPI::MPI_CXX)
 endif()
 
 if (Ginkgo_FOUND)
