@@ -89,25 +89,6 @@ int main(int argc, char* argv[]) {
 
 
 
-
-    #pragma omp parallel for private(cent) 
-    for (size_t i = 0; i < n_faces; ++i) {
- 
-        cent[0] = (faces[i].v1->x + faces[i].v2->x + faces[i].v3->x) / 3.0;
-        cent[1] = (faces[i].v1->y + faces[i].v2->y + faces[i].v3->y) / 3.0;
-        cent[2] = (faces[i].v1->z + faces[i].v2->z + faces[i].v3->z) / 3.0;
-        
-        for (size_t j = 0; j < n_faces; ++j) {   
-                G_arr[n_faces * i + j] = i == j ? 
-                          regularized_integral(faces[i].v1,
-                          faces[i].v2, faces[i].v3) 
-                                        :
-                          gauss_integral(faces[j].v1, faces[j].v2,
-                                         faces[j].v3, cent);
-        }       
-    }
-
-
     std::chrono::steady_clock::time_point end_assembleMatrix = std::chrono::steady_clock::now(); // end
 
     /******************************************************************************
@@ -184,12 +165,11 @@ int main(int argc, char* argv[]) {
     std::cout << "Solved G*q = phi for charge distribution in: " << time_toSolve << "ms" << std::endl;
 
 
-    // TODO: will be moved to a seperate function: considered not very important part of the code 
     // getting the actual densities: per node and not per face
     std::cout << "Mapping face densities to vertices and applying smoothing..." << std::endl;
 
-    // --- Step 1: Initial area-weighted mapping (same as your original code) ---
-    std::vector<ValueType> vertex_densities(n_vertices, 0.0); // Use double for precision
+    // --- Step 1: Initial area-weighted mapping
+    std::vector<ValueType> vertex_densities(n_vertices, 0.0); 
     std::vector<ValueType> ring_areas(n_vertices, 0.0);
 
     for (size_t i = 0; i < n_faces; ++i) {
@@ -207,7 +187,7 @@ int main(int argc, char* argv[]) {
     }
 
     for (size_t i = 0; i < n_vertices; ++i) {
-        if (ring_areas[i] > 1e-12) { // Avoid division by zero
+        if (ring_areas[i] > 1e-12 /* diving by very small areas */) { 
             vertex_densities[i] /= ring_areas[i];
         }
     }
@@ -221,12 +201,12 @@ int main(int argc, char* argv[]) {
         int v1_id = face.v1->id;
         int v2_id = face.v2->id;
         int v3_id = face.v3->id;
-        // Add edges to adjacency list, avoiding duplicates
+    
+	// Add edges to adjacency list, avoiding duplicates
         adjacency[v1_id].push_back(v2_id); adjacency[v1_id].push_back(v3_id);
         adjacency[v2_id].push_back(v1_id); adjacency[v2_id].push_back(v3_id);
         adjacency[v3_id].push_back(v1_id); adjacency[v3_id].push_back(v2_id);
     }
-    // Clean up duplicates
     for(auto& neighbors : adjacency) {
         std::sort(neighbors.begin(), neighbors.end());
         neighbors.erase(std::unique(neighbors.begin(), neighbors.end()), neighbors.end());
@@ -235,7 +215,7 @@ int main(int argc, char* argv[]) {
 
 
     const int smoothing_iterations = 1; 
-    std::vector<double> smoothed_densities = vertex_densities; // Work on a copy
+    std::vector<double> smoothed_densities = vertex_densities; 
 
     for (int iter = 0; iter < smoothing_iterations; ++iter) {
         for (size_t i = 0; i < n_vertices; ++i) {
@@ -247,11 +227,10 @@ int main(int argc, char* argv[]) {
             }
             smoothed_densities[i] = neighbor_sum / adjacency[i].size();
         }
-        vertex_densities = smoothed_densities; // Update for the next iteration
+        vertex_densities = smoothed_densities; 
     }
 
 
-    // --- Final Step: Assign smoothed densities back to the main vertex data structure ---
     for (auto& v : vertices) {
         v.density = vertex_densities[v.id];
     }
