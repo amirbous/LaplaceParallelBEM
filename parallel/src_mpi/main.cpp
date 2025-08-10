@@ -100,15 +100,14 @@ int main(int argc, char* argv[]) {
 
     max_chunk_faces = faces_base + 1;
 
+    local_faces.resize(max_chunk_faces);
 
 
     if (my_rank == 0) {
 
         int n_repeating_vertices_per_rank{0};
 
-
-        local_faces.assign(all_faces.begin(), all_faces.begin() + local_n_faces);
-
+        std::copy(all_faces.begin(), all_faces.begin() + local_n_faces, local_faces.begin());
 
 
         n_ownrank_repeating_vertices = local_n_faces * 3;
@@ -157,11 +156,12 @@ int main(int argc, char* argv[]) {
 
     }
 
+    
     else {
 
 
 
-        local_faces.resize(max_chunk_faces);
+
 
 
         MPI_Recv(local_faces.data(), local_n_faces, MPI_FACE, 0, 44, MPI_COMM_WORLD, &status);
@@ -227,7 +227,7 @@ int main(int argc, char* argv[]) {
     MPI_Exscan(&local_n_faces, &curr_block_offset,
                1, MPI_INT, MPI_SUM,
                MPI_COMM_WORLD);
-
+                                                                     
 
     curr_block_height = local_n_faces;
     curr_block_width = local_n_faces;
@@ -240,7 +240,7 @@ start_time = MPI_Wtime();
             for (int j = 0; j < curr_block_width; j++) {
 
                         G_arr_block[total_n_faces * i + curr_block_offset + j] =
-                            ( (i == j) & (rotation_count == 0) )
+                            ( (i == j) && (rotation_count == 0) )
                                 ? regularized_integral(
                                       local_vertices[local_faces[i].v1],
                                       local_vertices[local_faces[i].v2],
@@ -285,25 +285,34 @@ start_time = MPI_Wtime();
     std::cout << my_rank << ": " << end_time - start_time << std::endl;
 
 
-   /* for (int i = 0; i < world_size; i++) {
-        MPI_Barrier(MPI_COMM_WORLD);
-        if (i == my_rank) {
-            std::cout << "my_rank = " << my_rank << std::endl;
-       
-            print_matrix_block(G_arr, curr_block_height, total_n_faces, curr_block_offset);
+
+
+    // Gather send counts (in floats) from each rank
+    int block_volume = curr_block_height * total_n_faces; // number of floats per rank
+    std::vector<int> recvcounts(world_size);
+    MPI_Gather(&block_volume, 1, MPI_INT,
+               recvcounts.data(), 1, MPI_INT,
+               0, MPI_COMM_WORLD);
+
+    // Gather curr_block_offset from each rank (in rows)
+    std::vector<int> offsets_in_rows(world_size);
+    MPI_Gather(&curr_block_offset, 1, MPI_INT,
+               offsets_in_rows.data(), 1, MPI_INT,
+               0, MPI_COMM_WORLD);
+
+    // Build displacements (in floats) from offsets_in_rows
+    std::vector<int> displs(world_size);
+    if (my_rank == 0) {
+        for (int i = 0; i < world_size; i++) {
+            displs[i] = offsets_in_rows[i] * total_n_faces; // row offset → float offset
         }
-            MPI_Barrier(MPI_COMM_WORLD);  
-        }
+    }
 
-
-*/
-
-
-    MPI_Gather(G_arr_block, curr_block_height * total_n_faces, MPI_FLOAT, 
-                G_arr + curr_block_offset * total_n_faces, curr_block_height * total_n_faces,
-                MPI_FLOAT, 0, MPI_COMM_WORLD);
-
-
+    // Now gather the actual data into G_arr on root
+    MPI_Gatherv(G_arr_block, block_volume, MPI_FLOAT,
+                my_rank == 0 ? G_arr : nullptr,
+                recvcounts.data(), displs.data(), MPI_FLOAT,
+                0, MPI_COMM_WORLD);
 
 
     local_vertices.clear();
@@ -312,7 +321,9 @@ start_time = MPI_Wtime();
 
     if (my_rank == 0) {
 
-    std::cout << total_n_faces << std::endl;
+
+
+    // proceed with the rest of the computation: serialized
     float* phi_arr = (float *) calloc(total_n_faces, sizeof(float));
     float* q_arr = (float *) calloc(total_n_faces, sizeof(float));
 

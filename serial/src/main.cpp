@@ -109,7 +109,6 @@ int main(int argc, char* argv[]) {
 
 
 
-    std::chrono::steady_clock::time_point end_assembleMatrix = std::chrono::steady_clock::now(); // end
 
     /******************************************************************************
     ******************************************************************************/
