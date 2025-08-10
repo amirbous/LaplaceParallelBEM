@@ -49,10 +49,14 @@ int main(int argc, char* argv[]) {
     *
     *
     ******************************************************************************/
+
+    std::cout << "Started assembling the matrix" << std::endl;
+    
+
    float (*centroids)[3] = (float (*)[3])malloc(n_faces * sizeof(float[3]));
 
     // Step 1: Compute all centroids in parallel
-    for (int i = 0; i < n_faces; ++i) {
+    for (size_t i = 0; i < n_faces; ++i) {
         centroids[i][0] = (vertices[faces[i].v1].x + vertices[faces[i].v2].x + vertices[faces[i].v3].x) / 3;
         centroids[i][1] = (vertices[faces[i].v1].y + vertices[faces[i].v2].y + vertices[faces[i].v3].y) / 3;
         centroids[i][2] = (vertices[faces[i].v1].z + vertices[faces[i].v2].z + vertices[faces[i].v3].z) / 3;
@@ -63,15 +67,14 @@ int main(int argc, char* argv[]) {
 
 
     #pragma omp parallel for private(cent)
-    for (int i = 0; i < n_faces; ++i) {
+    for (size_t i = 0; i < n_faces; ++i) {
     // Compute centroid *once* for face i, private to each thread
 
-    // TODO: replace
-    //cent[0] = (faces[i].v1->x + faces[i].v2->x + faces[i].v3->x) / 3.0;
-    //cent[1] = (faces[i].v1->y + faces[i].v2->y + faces[i].v3->y) / 3.0;
-    //cent[2] = (faces[i].v1->z + faces[i].v2->z + faces[i].v3->z) / 3.0;
+    cent[0] = (vertices[faces[i].v1].x + vertices[faces[i].v2].x + vertices[faces[i].v3].x) / 3;
+    cent[1] = (vertices[faces[i].v1].y + vertices[faces[i].v2].y + vertices[faces[i].v3].y) / 3;
+    cent[2] = (vertices[faces[i].v1].z + vertices[faces[i].v2].z + vertices[faces[i].v3].z) / 3;
 
-    for (int j = 0; j < n_faces; ++j) {
+    for (size_t j = 0; j < n_faces; ++j) {
 
 
             G_arr[n_faces * i + j] = i == j ? 
@@ -80,13 +83,29 @@ int main(int argc, char* argv[]) {
                                               vertices[faces[i].v3]) 
                                         :
 
-                                        gauss_integral(vertices[faces[i].v1],
-                                        vertices[faces[i].v2],
-                                        vertices[faces[i].v3],
-                                        centroids[i]);
+                                        gauss_integral(vertices[faces[j].v1],
+                                        vertices[faces[j].v2],
+                                        vertices[faces[j].v3],
+                                        cent);
 
+        }
     }
-}
+
+    std::chrono::steady_clock::time_point end_assembleMatrix = std::chrono::steady_clock::now(); // end
+
+
+
+    #pragma omp parallel for collapse(2)
+    for (size_t i = 0; i < n_faces; ++i) {
+        for (size_t j = 0; j < n_faces; ++j) {   
+                G_arr[n_faces * i + j] = i == j ? 
+                          regularized_integral(vertices[faces[i].v1],
+                          vertices[faces[i].v2], vertices[faces[i].v3]) 
+                                        :
+                          gauss_integral(vertices[faces[j].v1], vertices[faces[j].v2],
+                                         vertices[faces[j].v3], centroids[i]);
+        }       
+    }
 
 
 

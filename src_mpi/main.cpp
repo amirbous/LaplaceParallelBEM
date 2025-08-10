@@ -21,7 +21,8 @@
 int main(int argc, char* argv[]) {
 
 
-
+    float* G_arr;
+    std::string mesh_file = (argc > 1 ? argv[1] : "sphere");
     MPI_Init(NULL, NULL);
 
     MPI_Status status;
@@ -73,12 +74,13 @@ int main(int argc, char* argv[]) {
 
         
 
-        std::string mesh_file = (argc > 1 ? argv[1] : "sphere");
 
         read_vtk(mesh_file, all_vertices, all_faces, total_n_vertices, total_n_faces);
         std::cout << "Prod. 1 finished reading the geometry!" << std::endl 
                   << "Mesh: " << mesh_file << ", " << total_n_vertices << 
                      " nodes, " << total_n_faces << " faces" << std::endl;
+
+        G_arr = (float *) calloc(total_n_faces * total_n_faces, sizeof(float));
     }
       
 
@@ -218,7 +220,7 @@ int main(int argc, char* argv[]) {
         centroids[i][2] = (local_vertices[local_faces[i].v1].z + local_vertices[local_faces[i].v2].z + local_vertices[local_faces[i].v3].z) / 3;
     }
 
-    float* G_arr = (float *) calloc(total_n_faces * local_n_faces, sizeof(float));
+    float* G_arr_block = (float *) calloc(total_n_faces * local_n_faces, sizeof(float));
 
 
 
@@ -230,12 +232,14 @@ int main(int argc, char* argv[]) {
     curr_block_height = local_n_faces;
     curr_block_width = local_n_faces;
 
+double start_time{0.0}, end_time{0.0}, assem_time{0.0};
+start_time = MPI_Wtime();
     for (int rotation_count = 0; rotation_count < world_size; rotation_count++) {
         
         for (int i = 0; i < curr_block_height; i++) {
             for (int j = 0; j < curr_block_width; j++) {
 
-                        G_arr[total_n_faces * i + curr_block_offset + j] =
+                        G_arr_block[total_n_faces * i + curr_block_offset + j] =
                             ( (i == j) & (rotation_count == 0) )
                                 ? regularized_integral(
                                       local_vertices[local_faces[i].v1],
@@ -275,10 +279,13 @@ int main(int argc, char* argv[]) {
 
     }
 
-    
+    end_time = MPI_Wtime();
+        MPI_Barrier(MPI_COMM_WORLD);
 
-    /*MPI_Barrier(MPI_COMM_WORLD);
-    for (int i = 0; i < world_size; i++) {
+    std::cout << my_rank << ": " << end_time - start_time << std::endl;
+
+
+   /* for (int i = 0; i < world_size; i++) {
         MPI_Barrier(MPI_COMM_WORLD);
         if (i == my_rank) {
             std::cout << "my_rank = " << my_rank << std::endl;
@@ -288,151 +295,69 @@ int main(int argc, char* argv[]) {
             MPI_Barrier(MPI_COMM_WORLD);  
         }
 
-    */
+
+*/
 
 
-    MPI_Finalize();
-    return 0;
-
-
-}
-
-
+    MPI_Gather(G_arr_block, curr_block_height * total_n_faces, MPI_FLOAT, 
+                G_arr + curr_block_offset * total_n_faces, curr_block_height * total_n_faces,
+                MPI_FLOAT, 0, MPI_COMM_WORLD);
 
 
 
 
-    //MPI_Scatter(all_faces.data(), local_n_faces, MPI_FACE, local_faces.data(), local_n_faces,  
-      //  MPI_FACE, 0, MPI_COMM_WORLD);
+    local_vertices.clear();
+    local_faces.clear();
+    free(G_arr_block);
 
+    if (my_rank == 0) {
 
-
-
-   // std::cout << std::endl;
-
-
-
-
-
-
-
-
-/*
-
-
-    ValueType* G_arr = (ValueType *) calloc(n_faces * n_faces, sizeof(ValueType));
-    ValueType* phi_arr = (ValueType *) calloc(n_faces, sizeof(ValueType));
-    ValueType* q_arr = (ValueType *) calloc(n_faces, sizeof(ValueType));
+    std::cout << total_n_faces << std::endl;
+    float* phi_arr = (float *) calloc(total_n_faces, sizeof(float));
+    float* q_arr = (float *) calloc(total_n_faces, sizeof(float));
 
 
     // Boundary Conditions
-    for (auto& v : vertices) { v.potential = 10;} 
+    for (auto& v :all_vertices) { v.potential = 10;} 
     
-
-    std::cout << "Started assembling the matrix" << std::endl;
-    
-
-   float (*centroids)[3] = (float (*)[3])malloc(n_faces * sizeof(float[3]));
-
-    // Step 1: Compute all centroids in parallel
-    for (size_t i = 0; i < n_faces; ++i) {
-        centroids[i][0] = (vertices[faces[i].v1].x + vertices[faces[i].v2].x + vertices[faces[i].v3].x) / 3;
-        centroids[i][1] = (vertices[faces[i].v1].y + vertices[faces[i].v2].y + vertices[faces[i].v3].y) / 3;
-        centroids[i][2] = (vertices[faces[i].v1].z + vertices[faces[i].v2].z + vertices[faces[i].v3].z) / 3;
+    for (size_t i = 0; i <total_n_faces; ++i) {
+        phi_arr[i] = (all_vertices[all_faces[i].v1].potential + all_vertices[all_faces[i].v2].potential + all_vertices[all_faces[i].v3].potential) / 3.0;
     }
-
-
-    std::chrono::steady_clock::time_point begin_assembleMatrix = std::chrono::steady_clock::now(); // measure time for this section
-
-
-    #pragma omp parallel for private(cent)
-    for (size_t i = 0; i < n_faces; ++i) {
-    // Compute centroid *once* for face i, private to each thread
-
-    cent[0] = (vertices[faces[i].v1].x + vertices[faces[i].v2].x + vertices[faces[i].v3].x) / 3;
-    cent[1] = (vertices[faces[i].v1].y + vertices[faces[i].v2].y + vertices[faces[i].v3].y) / 3;
-    cent[2] = (vertices[faces[i].v1].z + vertices[faces[i].v2].z + vertices[faces[i].v3].z) / 3;
-
-    for (size_t j = 0; j < n_faces; ++j) {
-
-
-            G_arr[n_faces * i + j] = i == j ? 
-                                        regularized_integral(vertices[faces[i].v1],
-                                              vertices[faces[i].v2],
-                                              vertices[faces[i].v3]) 
-                                        :
-
-                                        gauss_integral(vertices[faces[j].v1],
-                                        vertices[faces[j].v2],
-                                        vertices[faces[j].v3],
-                                        cent);
-
-        }
-    }
-
-    std::chrono::steady_clock::time_point end_assembleMatrix = std::chrono::steady_clock::now(); // end
-
-
-
-    #pragma omp parallel for collapse(2)
-    for (size_t i = 0; i < n_faces; ++i) {
-        for (size_t j = 0; j < n_faces; ++j) {   
-                G_arr[n_faces * i + j] = i == j ? 
-                          regularized_integral(vertices[faces[i].v1],
-                          vertices[faces[i].v2], vertices[faces[i].v3]) 
-                                        :
-                          gauss_integral(vertices[faces[j].v1], vertices[faces[j].v2],
-                                         vertices[faces[j].v3], centroids[i]);
-        }       
-    }
-
-
-
-
-
-    auto time_toAssemble = std::chrono::duration_cast<std::chrono::milliseconds>(end_assembleMatrix - begin_assembleMatrix).count();
-    std::cout << "finished assembling the matrix in: " << time_toAssemble << "ms" << std::endl;
-
-    // constructing load vector ==> density averaged over faces
-    for (size_t i = 0; i < n_faces; ++i) {
-        phi_arr[i] = (vertices[faces[i].v1].potential + vertices[faces[i].v2].potential + vertices[faces[i].v3].potential) / 3.0;
-    }
-
-
 
 
 
     std::cout << gko::version_info::get() << std::endl;
     const auto exec = gko::OmpExecutor::create();
 
+
     //system matrix
-    std::shared_ptr<gko::matrix::Dense> G = 
-            gko::matrix::Dense::create(                             
-                exec, gko::dim<2>{n_faces, n_faces},      
-                gko::array::view(exec, n_faces * n_faces, G_arr)
-                , n_faces); 
+    std::shared_ptr<gko::matrix::Dense<float>> G = 
+            gko::matrix::Dense<float>::create(                             
+                exec, gko::dim<2>{total_n_faces,total_n_faces},      
+                gko::array<float>::view(exec,total_n_faces *total_n_faces, G_arr)
+                ,total_n_faces); 
 
     //RHS, load vector
-    std::shared_ptr<gko::matrix::Dense> phi = 
-            gko::matrix::Dense::create(                             
-                exec, gko::dim<2>{n_faces, 1},      
-                gko::array::view(exec, n_faces, phi_arr)
+    std::shared_ptr<gko::matrix::Dense<float>> phi = 
+            gko::matrix::Dense<float>::create(                             
+                exec, gko::dim<2>{total_n_faces, 1},      
+                gko::array<float>::view(exec,total_n_faces, phi_arr)
                 , 1); 
 
     // to store solution
-    std::shared_ptr<gko::matrix::Dense> q = 
-            gko::matrix::Dense::create(                             
-                exec, gko::dim<2>{n_faces, 1},      
-                gko::array::view(exec, n_faces, q_arr)
+    std::shared_ptr<gko::matrix::Dense<float>> q = 
+            gko::matrix::Dense<float>::create(                             
+                exec, gko::dim<2>{total_n_faces, 1},      
+                gko::array<float>::view(exec,total_n_faces, q_arr)
                 , 1);
 
-    auto gmres_gen = gko::solver::Gmres::build()
+    auto gmres_gen = gko::solver::Gmres<float>::build()
         .with_criteria(
             gko::stop::Iteration::build().with_max_iters(200u).on(exec),
-            gko::stop::ResidualNorm::build()
+            gko::stop::ResidualNorm<float>::build()
                 .with_reduction_factor(1e-6).on(exec))
         .with_preconditioner(
-            gko::preconditioner::Jacobi<ValueType, int>::build()
+            gko::preconditioner::Jacobi<float, int>::build()
                 .with_max_block_size(1u)
                 .on(exec))
         .on(exec);
@@ -442,19 +367,13 @@ int main(int argc, char* argv[]) {
     auto gmres_solver = gmres_gen->generate(G);
 
 
-    std::chrono::steady_clock::time_point begin_solveMatrix = std::chrono::steady_clock::now(); // end
-    
+
     // solver call
     gmres_solver->apply(phi, q);
 
     free(G_arr);
     free(phi_arr);
 
-    std::chrono::steady_clock::time_point end_solveMatrix = std::chrono::steady_clock::now(); // end
-
-    auto time_toSolve = std::chrono::duration_cast<std::chrono::milliseconds>(end_solveMatrix - begin_solveMatrix).count();
-    
-    std::cout << "Solved G*q = phi for charge distribution in: " << time_toSolve << "ms" << std::endl;
 
 
     // TODO: will be moved to a seperate function: considered not very important part of the code 
@@ -462,12 +381,12 @@ int main(int argc, char* argv[]) {
     std::cout << "Mapping face densities to vertices and applying smoothing..." << std::endl;
 
     // --- Step 1: Initial area-weighted mapping (same as your original code) ---
-    std::vector vertex_densities(n_vertices, 0.0); // Use double for precision
-    std::vector ring_areas(n_vertices, 0.0);
+    std::vector vertex_densities(total_n_vertices, 0.0); // Use double for precision
+    std::vector ring_areas(total_n_vertices, 0.0);
 
-    for (size_t i = 0; i < n_faces; ++i) {
-        auto& f = faces[i];
-        double Ai = face_area(vertices[f.v1], vertices[f.v2], vertices[f.v3]);
+    for (size_t i = 0; i <total_n_faces; ++i) {
+        auto& f =all_faces[i];
+        double Ai = face_area(all_vertices[f.v1],all_vertices[f.v2],all_vertices[f.v3]);
         
         vertex_densities[f.v1] += q_arr[i] * Ai;
         ring_areas[f.v1] += Ai;
@@ -479,7 +398,7 @@ int main(int argc, char* argv[]) {
         ring_areas[f.v3] += Ai;
     }
 
-    for (size_t i = 0; i < n_vertices; ++i) {
+    for (size_t i = 0; i <total_n_vertices; ++i) {
         if (ring_areas[i] > 1e-12) { // Avoid division by zero
             vertex_densities[i] /= ring_areas[i];
         }
@@ -489,8 +408,8 @@ int main(int argc, char* argv[]) {
 
 
 
-    std::vector<std::vector<int>> adjacency(n_vertices);
-    for (const auto& face : faces) {
+    std::vector<std::vector<int>> adjacency(total_n_vertices);
+    for (const auto& face :all_faces) {
 
         // Add edges to adjacency list, avoiding duplicates
         adjacency[face.v1].push_back(face.v2); adjacency[face.v1].push_back(face.v3);
@@ -509,7 +428,7 @@ int main(int argc, char* argv[]) {
     std::vector<double> smoothed_densities = vertex_densities; // Work on a copy
 
     for (int iter = 0; iter < smoothing_iterations; ++iter) {
-        for (size_t i = 0; i < n_vertices; ++i) {
+        for (size_t i = 0; i <total_n_vertices; ++i) {
             if (adjacency[i].empty()) continue;
 
             double neighbor_sum = 0.0;
@@ -523,7 +442,7 @@ int main(int argc, char* argv[]) {
 
 
     // --- Final Step: Assign smoothed densities back to the main vertex data structure ---
-    for (auto& v : vertices) {
+    for (auto& v :all_vertices) {
         v.density = vertex_densities[v.id];
     }
 
@@ -531,7 +450,11 @@ int main(int argc, char* argv[]) {
 
 
 
-    write_vtu(mesh_file, vertices, faces, n_vertices, n_faces);
+    write_vtu(mesh_file,all_vertices,all_faces,total_n_vertices,total_n_faces);
 
+    }
+    MPI_Finalize();
 
-*/
+    return 0;
+}
+
