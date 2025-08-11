@@ -4,13 +4,15 @@ Parallel Boundary Element Method implementation for 3D Laplace
 #### Boudary element solver for electrostatic dielectric problems using the Boundary Element Method
 
 - TODO: 
-
-    - [ ] MPI version solves completely (need for suitable distributed solver)
-	- [ ] OpenMP on top of MPI for parallelizable loops
+    - [ ] Parllelize other kernels with OpenMP: density mappings and Laplce smoothing - Will not result in too much speed up but interesting parallelization problems (reduction over array)
+    - [ ] Complete distributed solve: not-feasable splitting of data not structured since the beginning
+    - [ ] Maybe: GInkgo distributed solver 
 - Implemented
+    - [x] Parallelize building matrix: both OpenMP and MPI 
+    - [x] Solve with Ginkgo OpenMP or CUDA executor
     - [x] Parallelize building matrix: OpenMP
-    - [x] Parallelize building matrix: MPI
-	- [x] OpenMP only version solves completely 
+    - [x] Parallelize building matrix: MPI 
+    - [x] OpenMP only version solves completely 
 #### Example models
 
 1. Cylinder:
@@ -29,7 +31,6 @@ Parallel Boundary Element Method implementation for 3D Laplace
 </table>
 
 2. Crane joint
-
 <table>
   <tr>
     <td align="center">
