@@ -42,5 +42,3 @@ Parallel Boundary Element Method implementation for 3D Laplace
     </td>
   </tr>
 </table>
-
-https://github.com/amirbous/LaplaceParallelBEM/blob/b5b749fa03a002b703f8aec7aa5622f48a7d83ae/screenshots/TraxStickPotential.png
