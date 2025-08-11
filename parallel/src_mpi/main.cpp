@@ -7,6 +7,7 @@
 #include <limits>
 
 
+
 #include <ginkgo/ginkgo.hpp>
 
 #include "geometry.hpp"
@@ -15,6 +16,7 @@
 
 #include "MPI_utils.hpp"
 
+#include <omp.h>
 #include <mpi.h>
 
 
@@ -236,6 +238,7 @@ double start_time{0.0}, end_time{0.0}, assem_time{0.0};
 start_time = MPI_Wtime();
     for (int rotation_count = 0; rotation_count < world_size; rotation_count++) {
         
+        #pragma omp parallel for collapse(2)
         for (int i = 0; i < curr_block_height; i++) {
             for (int j = 0; j < curr_block_width; j++) {
 
@@ -280,7 +283,7 @@ start_time = MPI_Wtime();
     }
 
     end_time = MPI_Wtime();
-        MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
 
     std::cout << my_rank << ": " << end_time - start_time << std::endl;
 
@@ -289,7 +292,10 @@ start_time = MPI_Wtime();
 
     // Gather send counts (in floats) from each rank
     int block_volume = curr_block_height * total_n_faces; // number of floats per rank
-    std::vector<int> recvcounts(world_size);
+
+    // time to go to big data, not very pleasent
+    std::vector<int64> recvcounts(world_size);
+
     MPI_Gather(&block_volume, 1, MPI_INT,
                recvcounts.data(), 1, MPI_INT,
                0, MPI_COMM_WORLD);
@@ -313,6 +319,7 @@ start_time = MPI_Wtime();
                 my_rank == 0 ? G_arr : nullptr,
                 recvcounts.data(), displs.data(), MPI_FLOAT,
                 0, MPI_COMM_WORLD);
+
 
 
     local_vertices.clear();
@@ -396,7 +403,7 @@ start_time = MPI_Wtime();
     std::vector ring_areas(total_n_vertices, 0.0);
 
     for (size_t i = 0; i <total_n_faces; ++i) {
-        auto& f =all_faces[i];
+        auto& f = all_faces[i];
         double Ai = face_area(all_vertices[f.v1],all_vertices[f.v2],all_vertices[f.v3]);
         
         vertex_densities[f.v1] += q_arr[i] * Ai;
