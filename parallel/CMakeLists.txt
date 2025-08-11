@@ -17,7 +17,12 @@ add_executable(${TARGET_NAME}
 )
 
 # --- Add include directories for the target
-target_include_directories(${TARGET_NAME} PRIVATE include)
+target_include_directories(${TARGET_NAME}
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 
 # --- Link libraries to the target
 target_link_libraries(${TARGET_NAME} PUBLIC

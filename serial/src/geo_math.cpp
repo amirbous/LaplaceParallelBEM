@@ -1,5 +1,5 @@
-#include "../include/geometry.hpp"
-#include "../include/geo_math.hpp"
+#include "geometry.hpp"
+#include "geo_math.hpp"
 
 #include <iostream>
 

@@ -7,7 +7,7 @@
 
 #include <iomanip>
 
-#include "../include/geometry.hpp"
+#include "geometry.hpp"
 
 
 void read_vtk(const std::string problem_name, std::vector<Vertex>& vertices, std::vector<Face>& faces,

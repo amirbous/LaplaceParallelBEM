@@ -8,9 +8,9 @@
 
 #include <ginkgo/ginkgo.hpp>
 
-#include "../include/geometry.hpp"
-#include "../include/IO_VTK.hpp"
-#include "../include/geo_math.hpp"
+#include "geometry.hpp"
+#include "IO_VTK.hpp"
+#include "geo_math.hpp"
 
 
 int main(int argc, char* argv[]) {

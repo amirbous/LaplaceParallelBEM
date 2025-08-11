@@ -16,7 +16,7 @@ add_executable(${TARGET_NAME}
 )
 
 # --- Add include directories for the target
-target_include_directories(${TARGET_NAME} PRIVATE include)
+target_include_directories(${TARGET_NAME} PRIVATE ../include)
 
 # --- Link libraries to the target
 target_link_libraries(${TARGET_NAME} PUBLIC

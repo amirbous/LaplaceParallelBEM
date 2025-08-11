@@ -9,11 +9,11 @@
 
 #include <ginkgo/ginkgo.hpp>
 
-#include "../include/geometry.hpp"
-#include "../include/IO_VTK.hpp"
-#include "../include/geo_math.hpp"
+#include "geometry.hpp"
+#include "IO_VTK.hpp"
+#include "geo_math.hpp"
 
-#include "../include/MPI_utils.hpp"
+#include "MPI_utils.hpp"
 
 #include <mpi.h>
 
@@ -329,7 +329,7 @@ start_time = MPI_Wtime();
 
 
     // Boundary Conditions
-    for (auto& v :all_vertices) { v.potential = 10;} 
+    for (auto& v :all_vertices) { v.potential = v.x * v.x + v.y * v.y;} 
     
     for (size_t i = 0; i <total_n_faces; ++i) {
         phi_arr[i] = (all_vertices[all_faces[i].v1].potential + all_vertices[all_faces[i].v2].potential + all_vertices[all_faces[i].v3].potential) / 3.0;

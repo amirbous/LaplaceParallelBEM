@@ -14,3 +14,6 @@ set(GINKGO_DIR "$ENV{HOME}/ginkgo/build/install" CACHE PATH "Path to the Ginkgo 
 # The copy command has been moved from here into the subdirectories.
 add_subdirectory(serial)
 add_subdirectory(parallel)
+
+# --- Add tests
+add_subdirectory(test)
