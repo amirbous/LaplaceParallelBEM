@@ -18,6 +18,7 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
+# Geometry test
 set(TARGET_GEOMETRY "geometry_test")
 
 add_executable(${TARGET_GEOMETRY}
@@ -31,6 +32,24 @@ target_include_directories(${TARGET_GEOMETRY}
         ${PROJECT_SOURCE_DIR}/include
 )
 
+# Geometry test
+set(TARGET_NUMERIC "numkernels_test")
+
+add_executable(${TARGET_NUMERIC}
+    ${PROJECT_SOURCE_DIR}/serial/src/IO_VTK.cpp
+    ${PROJECT_SOURCE_DIR}/serial/src/geo_math.cpp
+    ${PROJECT_SOURCE_DIR}/test/numerical_kernels_test.cpp   # Add your test file here
+)
+
+target_include_directories(${TARGET_NUMERIC}
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+# 
+
 target_link_libraries(${TARGET_GEOMETRY} gtest_main)
+target_link_libraries(${TARGET_NUMERIC} gtest_main)
 
 add_test(NAME ${TARGET_GEOMETRY} COMMAND ${TARGET_GEOMETRY})
+add_test(NAME ${TARGET_NUMERIC} COMMAND ${TARGET_NUMERIC})

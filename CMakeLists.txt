@@ -16,4 +16,5 @@ add_subdirectory(serial)
 add_subdirectory(parallel)
 
 # --- Add tests
+include(CTest) 
 add_subdirectory(test)

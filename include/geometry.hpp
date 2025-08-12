@@ -6,6 +6,8 @@ struct Vertex {
 	Vertex (): x(0.0f), y(0.0f), z(0.0f), 
 	           potential(0.0f), density(-1.0f), id(0) {}
 
+	Vertex (float x, float y, float z): 
+	       x(x), y(y), z(z), potential(0.0f), density(-1.0f), id(0) {}
 	Vertex (float x, float y, float z, int id): 
 	       x(x), y(y), z(z), potential(0.0f), density(-1.0f), id(id) {}
 

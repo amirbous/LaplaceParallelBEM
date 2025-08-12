@@ -22,13 +22,11 @@ float face_area(const Vertex v1, const Vertex v2,
 	float triangle_normal[3] = {0.0f};
 
 	// unit vector of triangle 1 and 2 (e1, e2) and centroid
-	float cent[3] = {0.0f};
+
+
 	float e1[3] = {0.0f}, e2[3] = {0.0f}, f_normal[3] = {0.0f};
 
-	// compute centroide
-	cent[0] = (v1.x + v2.x + v3.x) / 3;
-	cent[1] = (v1.y + v2.y + v3.y) / 3;
-	cent[2] = (v1.z + v2.z + v3.z) / 3;
+
 
 
 	// compute unit vectors in triangle coordinates
