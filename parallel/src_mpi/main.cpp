@@ -294,7 +294,7 @@ start_time = MPI_Wtime();
     int block_volume = curr_block_height * total_n_faces; // number of floats per rank
 
     // time to go to big data, not very pleasent
-    std::vector<int64> recvcounts(world_size);
+    std::vector<int> recvcounts(world_size);
 
     MPI_Gather(&block_volume, 1, MPI_INT,
                recvcounts.data(), 1, MPI_INT,
