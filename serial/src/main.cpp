@@ -4,7 +4,7 @@
 
 #include <chrono>
 #include <limits>
-
+#include <cstdlib>
 
 #include <ginkgo/ginkgo.hpp>
 
@@ -16,18 +16,18 @@
 int main(int argc, char* argv[]) {
 
     std::string mesh_file = (argc > 1 ? argv[1] : "sphere");
-
+    int precompute_centroids = (argc > 2 ? atoi(argv[2]) : 0);
     int n_vertices{0}, n_faces{0};
     std::vector<Vertex> vertices;
     std::vector<Face> faces;
 
-
+    std::chrono::steady_clock::time_point begin_assembleMatrix, end_assembleMatrix;
     float cent[3];
 
 
 
     read_vtk(mesh_file, vertices, faces, n_vertices, n_faces);
-    std::cout << "Mesh: " << mesh_file << ", " << n_vertices << " nodes, " << n_faces << " faces" << std::endl;
+ //   std::cout << "Mesh: " << mesh_file << ", " << n_vertices << " nodes, " << n_faces << " faces" << std::endl;
 
 
 
@@ -40,7 +40,6 @@ int main(int argc, char* argv[]) {
     for (auto& v : vertices) { v.potential = 10;} 
     
 
-    std::cout << "Started assembling the matrix" << std::endl;
     
     /*****************************************************************************
     *
@@ -50,29 +49,22 @@ int main(int argc, char* argv[]) {
     *
     ******************************************************************************/
 
-    std::cout << "Started assembling the matrix" << std::endl;
     
 
-   float (*centroids)[3] = (float (*)[3])malloc(n_faces * sizeof(float[3]));
-
-    // Step 1: Compute all centroids in parallel
-    for (size_t i = 0; i < n_faces; ++i) {
-        centroids[i][0] = (vertices[faces[i].v1].x + vertices[faces[i].v2].x + vertices[faces[i].v3].x) / 3;
-        centroids[i][1] = (vertices[faces[i].v1].y + vertices[faces[i].v2].y + vertices[faces[i].v3].y) / 3;
-        centroids[i][2] = (vertices[faces[i].v1].z + vertices[faces[i].v2].z + vertices[faces[i].v3].z) / 3;
-    }
 
 
-    std::chrono::steady_clock::time_point begin_assembleMatrix = std::chrono::steady_clock::now(); // measure time for this section
+    if (!precompute_centroids) {
+//	std::cout << "solving without precomputing centroids" << std::endl;
 
+     begin_assembleMatrix= std::chrono::steady_clock::now(); // measure time for this section
+        #pragma omp parallel for private(cent)
+        for (size_t i = 0; i < n_faces; ++i) {
 
-    #pragma omp parallel for private(cent)
-    for (size_t i = 0; i < n_faces; ++i) {
     // Compute centroid *once* for face i, private to each thread
 
-    cent[0] = (vertices[faces[i].v1].x + vertices[faces[i].v2].x + vertices[faces[i].v3].x) / 3;
-    cent[1] = (vertices[faces[i].v1].y + vertices[faces[i].v2].y + vertices[faces[i].v3].y) / 3;
-    cent[2] = (vertices[faces[i].v1].z + vertices[faces[i].v2].z + vertices[faces[i].v3].z) / 3;
+        cent[0] = (vertices[faces[i].v1].x + vertices[faces[i].v2].x + vertices[faces[i].v3].x) / 3;
+        cent[1] = (vertices[faces[i].v1].y + vertices[faces[i].v2].y + vertices[faces[i].v3].y) / 3;
+        cent[2] = (vertices[faces[i].v1].z + vertices[faces[i].v2].z + vertices[faces[i].v3].z) / 3;
 
     for (size_t j = 0; j < n_faces; ++j) {
 
@@ -91,21 +83,38 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    std::chrono::steady_clock::time_point end_assembleMatrix = std::chrono::steady_clock::now(); // end
+     end_assembleMatrix = std::chrono::steady_clock::now(); // end
+    }
+    else {
+//	std::cout << "Solving with precomputing centroids" << std::endl;
+        float (*centroids)[3] = (float (*)[3])malloc(n_faces * sizeof(float[3]));
 
+        // Step 1: Compute all centroids in parallel
+        for (size_t i = 0; i < n_faces; ++i) {
+            centroids[i][0] = (vertices[faces[i].v1].x + vertices[faces[i].v2].x + vertices[faces[i].v3].x) / 3;
+            centroids[i][1] = (vertices[faces[i].v1].y + vertices[faces[i].v2].y + vertices[faces[i].v3].y) / 3;
+            centroids[i][2] = (vertices[faces[i].v1].z + vertices[faces[i].v2].z + vertices[faces[i].v3].z) / 3;
+        }
 
-
-    #pragma omp parallel for collapse(2)
-    for (size_t i = 0; i < n_faces; ++i) {
-        for (size_t j = 0; j < n_faces; ++j) {   
+     begin_assembleMatrix= std::chrono::steady_clock::now(); // measure time for this section
+        #pragma omp parallel for collapse(2)
+        for (size_t i = 0; i < n_faces; ++i) {
+            for (size_t j = 0; j < n_faces; ++j) {   
                 G_arr[n_faces * i + j] = i == j ? 
                           regularized_integral(vertices[faces[i].v1],
                           vertices[faces[i].v2], vertices[faces[i].v3]) 
                                         :
                           gauss_integral(vertices[faces[j].v1], vertices[faces[j].v2],
                                          vertices[faces[j].v3], centroids[i]);
-        }       
+            }       
+        }
+  
+     end_assembleMatrix = std::chrono::steady_clock::now(); // end
     }
+
+
+
+
 
 
 
@@ -115,7 +124,7 @@ int main(int argc, char* argv[]) {
 
 
     auto time_toAssemble = std::chrono::duration_cast<std::chrono::milliseconds>(end_assembleMatrix - begin_assembleMatrix).count();
-    std::cout << "finished assembling the matrix in: " << time_toAssemble << "ms" << std::endl;
+    std::cout << time_toAssemble;
 
     // constructing load vector ==> density averaged over faces
     for (int i = 0; i < n_faces; ++i) {
@@ -129,7 +138,7 @@ int main(int argc, char* argv[]) {
     ---------------------------------------------------*/
 
 
-    std::cout << gko::version_info::get() << std::endl;
+  //  std::cout << gko::version_info::get() << std::endl;
     const auto exec = gko::OmpExecutor::create();
     size_t n_faces_t = (size_t)n_faces;
     //system matrix
@@ -181,11 +190,11 @@ int main(int argc, char* argv[]) {
 
     auto time_toSolve = std::chrono::duration_cast<std::chrono::milliseconds>(end_solveMatrix - begin_solveMatrix).count();
     
-    std::cout << "Solved G*q = phi for charge distribution in: " << time_toSolve << "ms" << std::endl;
+ //   std::cout << "Solved G*q = phi for charge distribution in: " << time_toSolve << "ms" << std::endl;
 
 
     // getting the actual densities: per node and not per face
-    std::cout << "Mapping face densities to vertices and applying smoothing..." << std::endl;
+   // std::cout << "Mapping face densities to vertices and applying smoothing..." << std::endl;
 
     // --- Step 1: Initial area-weighted mapping
     std::vector vertex_densities(n_vertices, 0.0); 
@@ -254,7 +263,7 @@ int main(int argc, char* argv[]) {
         v.density = vertex_densities[v.id];
     }
 
-    std::cout << "Smoothing complete." << std::endl;
+   // std::cout << "Smoothing complete." << std::endl;
 
 
 

@@ -23,8 +23,6 @@
 int main(int argc, char* argv[]) {
 
 
-    float* G_arr;
-    std::string mesh_file = (argc > 1 ? argv[1] : "sphere");
     MPI_Init(NULL, NULL);
 
     MPI_Status status;
@@ -42,6 +40,7 @@ int main(int argc, char* argv[]) {
 
     create_MPIFace_type();
     create_MPIVertex_type();
+    int dynamic_omp_nthreads{0};
 
     int total_n_vertices{0}, total_n_faces{0};
     int local_n_vertices{0}, local_n_faces{0};
@@ -59,7 +58,11 @@ int main(int argc, char* argv[]) {
     int target_ring_rank{0};
     int source_ring_rank{0};
 
+    double max_construction_time{0.0};
 
+    float cent[3];
+    
+    float* G_arr;
 
     std::vector<Vertex> all_vertices;
     std::vector<Face> all_faces;
@@ -69,18 +72,17 @@ int main(int argc, char* argv[]) {
 
     std::map<int, int> global_id_to_local;
 
-    float cent[3];
 
+    std::string mesh_file = (argc > 1 ? argv[1] : "sphere");
+    
+    dynamic_omp_nthreads = omp_get_thread_num();
 
     if (my_rank == 0) {
 
-        
-
-
         read_vtk(mesh_file, all_vertices, all_faces, total_n_vertices, total_n_faces);
-        std::cout << "Prod. 1 finished reading the geometry!" << std::endl 
-                  << "Mesh: " << mesh_file << ", " << total_n_vertices << 
-                     " nodes, " << total_n_faces << " faces" << std::endl;
+//        std::cout << "Prod. 1 finished reading the geometry!" << std::endl 
+//                  << "Mesh: " << mesh_file << ", " << total_n_vertices << 
+ //                    " nodes, " << total_n_faces << " faces" << std::endl;
 
         G_arr = (float *) calloc(total_n_faces * total_n_faces, sizeof(float));
     }
@@ -234,8 +236,8 @@ int main(int argc, char* argv[]) {
     curr_block_height = local_n_faces;
     curr_block_width = local_n_faces;
 
-double start_time{0.0}, end_time{0.0}, assem_time{0.0};
-start_time = MPI_Wtime();
+    double start_time{0.0}, end_time{0.0}, assem_time{0.0};
+    start_time = MPI_Wtime();
     for (int rotation_count = 0; rotation_count < world_size; rotation_count++) {
         
         #pragma omp parallel for collapse(2)
@@ -283,41 +285,39 @@ start_time = MPI_Wtime();
     }
 
     end_time = MPI_Wtime();
+    assem_time = end_time - start_time;
     MPI_Barrier(MPI_COMM_WORLD);
 
-    std::cout << my_rank << ": " << end_time - start_time << std::endl;
+    
+
+    MPI_Reduce(&assem_time, &max_construction_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
 
 
 
     // Gather send counts (in floats) from each rank
     int block_volume = curr_block_height * total_n_faces; // number of floats per rank
+    int offset_volume = curr_block_offset * total_n_faces; // offset per number of floats
 
     // time to go to big data, not very pleasent
     std::vector<int> recvcounts(world_size);
+    std::vector<int> offsets_in_rows(world_size);
 
     MPI_Gather(&block_volume, 1, MPI_INT,
                recvcounts.data(), 1, MPI_INT,
                0, MPI_COMM_WORLD);
 
     // Gather curr_block_offset from each rank (in rows)
-    std::vector<int> offsets_in_rows(world_size);
-    MPI_Gather(&curr_block_offset, 1, MPI_INT,
+    MPI_Gather(&offset_volume, 1, MPI_INT,
                offsets_in_rows.data(), 1, MPI_INT,
                0, MPI_COMM_WORLD);
 
     // Build displacements (in floats) from offsets_in_rows
-    std::vector<int> displs(world_size);
-    if (my_rank == 0) {
-        for (int i = 0; i < world_size; i++) {
-            displs[i] = offsets_in_rows[i] * total_n_faces; // row offset → float offset
-        }
-    }
 
     // Now gather the actual data into G_arr on root
     MPI_Gatherv(G_arr_block, block_volume, MPI_FLOAT,
                 my_rank == 0 ? G_arr : nullptr,
-                recvcounts.data(), displs.data(), MPI_FLOAT,
+                recvcounts.data(), offsets_in_rows.data(), MPI_FLOAT,
                 0, MPI_COMM_WORLD);
 
 
@@ -328,7 +328,7 @@ start_time = MPI_Wtime();
 
     if (my_rank == 0) {
 
-
+    std::cout <<  max_construction_time;
 
     // proceed with the rest of the computation: serialized
     float* phi_arr = (float *) calloc(total_n_faces, sizeof(float));
@@ -344,7 +344,9 @@ start_time = MPI_Wtime();
 
 
 
-    std::cout << gko::version_info::get() << std::endl;
+  //  std::cout << gko::version_info::get() << std::endl;
+
+    omp_set_num_threads(32); 
     const auto exec = gko::OmpExecutor::create();
 
 
@@ -387,37 +389,36 @@ start_time = MPI_Wtime();
 
 
     // solver call
+
+    double start_solveTime{0.0}, end_solveTime{0.0};
+    start_solveTime = MPI_Wtime();
     gmres_solver->apply(phi, q);
+    end_solveTime = MPI_Wtime();
+
+   // std::cout << "Time to solve: " << end_solveTime - start_solveTime << "s" << std::endl;
 
     free(G_arr);
     free(phi_arr);
 
-
-
-    // TODO: will be moved to a seperate function: considered not very important part of the code 
-    // getting the actual densities: per node and not per face
-    std::cout << "Mapping face densities to vertices and applying smoothing..." << std::endl;
-
-    // --- Step 1: Initial area-weighted mapping (same as your original code) ---
-    std::vector vertex_densities(total_n_vertices, 0.0); // Use double for precision
+    std::vector vertex_densities(total_n_vertices, 0.0); 
     std::vector ring_areas(total_n_vertices, 0.0);
 
-    for (size_t i = 0; i <total_n_faces; ++i) {
+    for (int i = 0; i < total_n_faces; ++i) {
         auto& f = all_faces[i];
-        double Ai = face_area(all_vertices[f.v1],all_vertices[f.v2],all_vertices[f.v3]);
+        double Ai = face_area(all_vertices[f.v1], all_vertices[f.v2], all_vertices[f.v3]);
         
-        vertex_densities[f.v1] += q_arr[i] * Ai;
-        ring_areas[f.v1] += Ai;
+        vertex_densities[all_vertices[f.v1].id] += q_arr[i] * Ai;
+        ring_areas[all_vertices[f.v1].id] += Ai;
 
-        vertex_densities[f.v2] += q_arr[i] * Ai;
-        ring_areas[f.v2] += Ai;
+        vertex_densities[all_vertices[f.v2].id] += q_arr[i] * Ai;
+        ring_areas[all_vertices[f.v2].id] += Ai;
 
-        vertex_densities[f.v3] += q_arr[i] * Ai;
-        ring_areas[f.v3] += Ai;
+        vertex_densities[all_vertices[f.v3].id] += q_arr[i] * Ai;
+        ring_areas[all_vertices[f.v3].id] += Ai;
     }
 
-    for (size_t i = 0; i <total_n_vertices; ++i) {
-        if (ring_areas[i] > 1e-12) { // Avoid division by zero
+    for (int i = 0; i < total_n_vertices; ++i) {
+        if (ring_areas[i] > 1e-12 /* diving by very small areas */) { 
             vertex_densities[i] /= ring_areas[i];
         }
     }
@@ -427,14 +428,16 @@ start_time = MPI_Wtime();
 
 
     std::vector<std::vector<int>> adjacency(total_n_vertices);
-    for (const auto& face :all_faces) {
-
-        // Add edges to adjacency list, avoiding duplicates
-        adjacency[face.v1].push_back(face.v2); adjacency[face.v1].push_back(face.v3);
-        adjacency[face.v2].push_back(face.v1); adjacency[face.v2].push_back(face.v3);
-        adjacency[face.v3].push_back(face.v1); adjacency[face.v3].push_back(face.v2);
+    for (const auto& face : all_faces) {
+        int v1_id = all_vertices[face.v1].id;
+        int v2_id = all_vertices[face.v2].id;
+        int v3_id = all_vertices[face.v3].id;
+    
+	// Add edges to adjacency list, avoiding duplicates
+        adjacency[v1_id].push_back(v2_id); adjacency[v1_id].push_back(v3_id);
+        adjacency[v2_id].push_back(v1_id); adjacency[v2_id].push_back(v3_id);
+        adjacency[v3_id].push_back(v1_id); adjacency[v3_id].push_back(v2_id);
     }
-    // Clean up duplicates
     for(auto& neighbors : adjacency) {
         std::sort(neighbors.begin(), neighbors.end());
         neighbors.erase(std::unique(neighbors.begin(), neighbors.end()), neighbors.end());
@@ -443,10 +446,10 @@ start_time = MPI_Wtime();
 
 
     const int smoothing_iterations = 1; 
-    std::vector<double> smoothed_densities = vertex_densities; // Work on a copy
+    std::vector<double> smoothed_densities = vertex_densities; 
 
     for (int iter = 0; iter < smoothing_iterations; ++iter) {
-        for (size_t i = 0; i <total_n_vertices; ++i) {
+        for (int i = 0; i < total_n_vertices; ++i) {
             if (adjacency[i].empty()) continue;
 
             double neighbor_sum = 0.0;
@@ -455,24 +458,23 @@ start_time = MPI_Wtime();
             }
             smoothed_densities[i] = neighbor_sum / adjacency[i].size();
         }
-        vertex_densities = smoothed_densities; // Update for the next iteration
+        vertex_densities = smoothed_densities; 
     }
 
 
-    // --- Final Step: Assign smoothed densities back to the main vertex data structure ---
-    for (auto& v :all_vertices) {
+    for (auto& v : all_vertices) {
         v.density = vertex_densities[v.id];
     }
 
-    std::cout << "Smoothing complete." << std::endl;
+   // std::cout << "Smoothing complete." << std::endl;
 
 
 
-    write_vtu(mesh_file,all_vertices,all_faces,total_n_vertices,total_n_faces);
-
+    write_vtu(mesh_file, all_vertices, all_faces, total_n_vertices, total_n_faces);
     }
     MPI_Finalize();
 
     return 0;
+
 }
 

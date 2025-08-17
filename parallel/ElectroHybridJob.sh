@@ -11,16 +11,23 @@
 module load openmpi
 export OMPI_MCA_psec=^munge
 
+echo "N_MPI,N_OMP,REP1s,REP2s,REP3s,REP4s,REP5s"
 
-echo "N_THREADS,REP1ms,REP2ms,REP3ms,REP4ms,REP5ms"
 for i in 1 2 4 8 16 32; do
-    echo -n "$i"
-    for r in $(seq 1 5); do
-        result=$(srun -n $i ./electroparal sphere)
-	echo -n ",$result"
+    max_j=$((64 / i))   # maximum threads allowed for this i
+    j=1
+    while [ $j -le $max_j ]; do
+        echo -n "$i,$j"
+        for r in $(seq 1 5); do
+            export OMP_NUM_THREADS=$j
+            result=$(srun -n $i ./electroparal Cylinder_5)
+            echo -n ",$result"
+        done
+        echo
+        j=$((j * 2))  # power of two progression
     done
-    echo
 done
+
 
 
 echo "All runs completed!"
