@@ -65,6 +65,10 @@ The implementation has been compared against an external solver for converngece.
 
 The model Crane joint has been used for this convergence test
 
+<img src="https://github.com/amirbous/LaplaceParallelBEM/blob/c2527075f2cbd8a834d849c4f8001e5c80f62845/results/ConvergencePlotMyBEMSolver.png" alt="Potential" width="400"/>
+
+
+
 
 ### Results and scaling
 
