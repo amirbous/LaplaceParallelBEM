@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
 
 
     read_vtk(mesh_file, vertices, faces, n_vertices, n_faces);
- //   std::cout << "Mesh: " << mesh_file << ", " << n_vertices << " nodes, " << n_faces << " faces" << std::endl;
+    std::cout << "Mesh: " << mesh_file << ", " << n_vertices << " nodes, " << n_faces << " faces" << std::endl;
 
 
 
@@ -268,8 +268,6 @@ int main(int argc, char* argv[]) {
 
 
     write_vtu(mesh_file, vertices, faces, n_vertices, n_faces);
-
-
 
     return 0;
 }

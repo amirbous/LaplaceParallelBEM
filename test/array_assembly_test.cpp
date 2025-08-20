@@ -33,14 +33,17 @@ TEST(ArrayAssemblyTest, matrixArray_serial) {
     int SPHERE_N_VERTICES = 172;
     std::string SPHERE_PROBLEMNAME = "sphere";
 
-
     int n_vertices{0}, n_faces{0};
     std::vector<Vertex> vertices;
     std::vector<Face> faces;
 
     read_vtk(SPHERE_PROBLEMNAME, vertices, faces, n_vertices, n_faces);
 
+    std::string groundthruth_matrix = "sphere_correct.mtx";
+
     // TODO: complete matrix flow, then compare to file
+    
+
 }
 
 

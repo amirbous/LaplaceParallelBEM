@@ -18,5 +18,9 @@ void read_vtk(const std::string problem_name, std::vector<Vertex>& vertices,
 void write_vtu(const std::string problem_name, const std::vector<Vertex>& vertices, const std::vector<Face>& faces,
 							int &nvertices, int &nfaces);
 
+void read_vtu_sol(const std::string problem_name, std::vector<Vertex>& vertices,
+				std::vector<Face>& faces,
+				int& nvertices, int& nfaces);
+
 #endif
 
