@@ -1,7 +1,19 @@
 # LaplaceParallelBEM
 Parallel Boundary Element Method implementation for 3D Laplace
 
+#### Boudary element solver for electrostatic dielectric problems using the Boundary Element Method
 
+- TODO: 
+    - [ ] Complete distributed solve: not-feasable splitting of data not structured since the beginning
+    - [ ] Ginkgo distributed solver 
+- Features Implemented
+    - [x] Parallelize building matrix: both OpenMP and MPI 
+    - [x] Solve with Ginkgo OpenMP or CUDA executor
+    - [x] Parallelize building matrix: OpenMP
+    - [x] Parallelize building matrix: MPI 
+    - [x] OpenMP only version solves completely 
+
+#
 #### Requirements
 - C++ 17 standard (15 should also work, but build configuration set to 17)
 - Ginkgo v1.10.0
@@ -47,19 +59,14 @@ After building, it is possible to run `ctest` in the build directory, which will
 
 The automated tests don't cover the complete convergence of the method, as they are meant to be lightweight and check partial computations at correctness of the results at different stages of simulation.
 
-#### Boudary element solver for electrostatic dielectric problems using the Boundary Element Method
+### Convergence
 
-- TODO: 
-    - [ ] Complete distributed solve: not-feasable splitting of data not structured since the beginning
-    - [ ] Ginkgo distributed solver 
-- Features Implemented
-    - [x] Parallelize building matrix: both OpenMP and MPI 
-    - [x] Solve with Ginkgo OpenMP or CUDA executor
-    - [x] Parallelize building matrix: OpenMP
-    - [x] Parallelize building matrix: MPI 
-    - [x] OpenMP only version solves completely 
+The implementation has been compared against an external solver for converngece.
 
-#### Results and scaling
+The model Crane joint has been used for this convergence test
+
+
+### Results and scaling
 
 - OpenMP
 
