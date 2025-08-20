@@ -25,28 +25,6 @@ TEST(NumericTest, area_computation) {
     ASSERT_FLOAT_EQ(compute_area, true_area) << "computed area " << compute_area << " different from true area " << true_area;
 
 }
-
-TEST(NumericTest, normal_vector_computation) {
-    // TODO
-
-}
-
-TEST(NumericTest, gaussian_kernel_computation) {
-    // TODO
-
-}
-TEST(NumericTest, regularized_kernel_computation) {
-    // TODO
-
-}
-
-TEST(NumericTest, laplace_one_face) {
-    // TODO
-
-}
-
-
-
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

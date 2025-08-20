@@ -53,6 +53,21 @@ To run each of the programs can be done using
 
     - parallel: `mpirun -np <n_mpi_cores> ./electroparal <problem name>  
 
+
+#### Repo Structure
+
+- `geo`: example Geometry files, some example are taken from FreeCAD software example
+
+- `include`: inclue files and further utilities that can be used as an extention (e.g error evaluation compared to a ground truth solution file)
+
+- `parallel`: distributed implementation with MPI source code    
+
+- `results`: screentshots and measurements
+
+- `serial` serial and shared memory implementation with OpenMP source code
+
+- `test`: tests for partial results correctness
+
  
 #### Testing
 After building, it is possible to run `ctest` in the build directory, which will execute a series of tests
