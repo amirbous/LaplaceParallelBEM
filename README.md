@@ -1,5 +1,11 @@
 # LaplaceParallelBEM
-Parallel Boundary Element Method implementation for 3D Laplace
+Parallel Boundary Element Method implementation for 3D Laplace using hybird Distributed and shared memory parallelization
+
+
+Solves a 3D parallel diffusion equation using the boundary element method
+
+Note: The boundary conditions/electrical potential can only be updated within the code and a user input defined solution has not still implemented.
+In the current version, this is set to 10V. However the model is capable is solving for any potential.
 
 #### Boudary element solver for electrostatic dielectric problems using the Boundary Element Method
 
@@ -13,15 +19,12 @@ Parallel Boundary Element Method implementation for 3D Laplace
     - [x] Parallelize building matrix: MPI 
     - [x] OpenMP only version solves completely 
 
-#
 #### Requirements
 - C++ 17 standard (15 should also work, but build configuration set to 17)
 - Ginkgo v1.10.0
 - OpenMP
 - MPI_CXX
 - python v3.10+ only for automated tests
-
-
 
 #### Build instructions 
 
@@ -39,7 +42,7 @@ Inside the build 2 main directores will form:
 
     - serial: has a serial version program `electromain`, which also uses OpenMP.
 
-    -  parallel: has the compiled MPI program `electroparal`, can be run as a serial program without using MPI
+    - parallel: has the compiled MPI program `electroparal`, can be run as a serial program without using MPI
 
 - running the program
 
@@ -53,6 +56,7 @@ To run each of the programs can be done using
 
     - parallel: `mpirun -np <n_mpi_cores> ./electroparal <problem name>  
 
+After running in the same directory as the executables a new file `<problem name>.vtu` will be created, and the results can be visualized in `Paraview` for example
 
 #### Repo Structure
 
@@ -74,6 +78,7 @@ After building, it is possible to run `ctest` in the build directory, which will
 
 The automated tests don't cover the complete convergence of the method, as they are meant to be lightweight and check partial computations at correctness of the results at different stages of simulation.
 
+
 ### Convergence
 
 The implementation has been compared against an external solver for converngece.
@@ -92,6 +97,10 @@ The model Crane joint has been used for this convergence test
 - MPI
 
 - Hybird OpenMP-MPI
+
+
+TODO: add scaling plots
+- [ ] Add scaling plots
 
 #### Example models
 
