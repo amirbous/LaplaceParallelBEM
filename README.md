@@ -16,8 +16,7 @@ In the current version, this is set to 10V. However the model is capable is solv
     - [x] Parallelize building matrix: both OpenMP and MPI 
     - [x] Solve with Ginkgo OpenMP or CUDA executor
     - [x] Parallelize building matrix: OpenMP
-    - [x] Parallelize building matrix: MPI 
-    - [x] OpenMP only version solves completely 
+    - [x] Parallelize building matrix: MPI
 
 #### Requirements
 - C++ 17 standard (15 should also work, but build configuration set to 17)
