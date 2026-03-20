@@ -19,13 +19,27 @@ In the current version, this is set to 10V. However the model is capable is solv
     - [x] Parallelize building matrix: MPI
 
 #### Requirements
+
+
+For `serial` and `parallel`: 
+
 - C++ 17 standard (15 should also work, but build configuration set to 17)
 - Ginkgo v1.10.0
 - OpenMP
 - MPI_CXX
 - python v3.10+ only for automated tests
 
+For `gpu`
+
+- C++ 17 standard (15 should also work, but build configuration set to 17)
+- CUDA 
+
+For `fortran`
+
+
 #### Build instructions 
+
+**For serial and build**:
 
 - configure and build
 
@@ -56,6 +70,17 @@ To run each of the programs can be done using
     - parallel: `mpirun -np <n_mpi_cores> ./electroparal <problem name>  
 
 After running in the same directory as the executables a new file `<problem name>.vtu` will be created, and the results can be visualized in `Paraview` for example
+
+
+**For fortran**:
+
+The CMAKE build does not include fortran.
+To build the fortran, go inside `fortran/` and run make.
+
+
+**For gpu**:
+
+TODO
 
 #### Repo Structure
 
