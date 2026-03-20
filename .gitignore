@@ -43,3 +43,6 @@
 # user defined
 build/*
 geo/*
+
+# specific fortran target
+fortran/electro_bem
